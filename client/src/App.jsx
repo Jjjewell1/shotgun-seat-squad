@@ -22,7 +22,6 @@ function ParentDashboard({ onLogout, adminToken }) {
   const [newKidName, setNewKidName] = useState('')
   const [elapsed, setElapsed] = useState('00:00:00')
   const [showPicker, setShowPicker] = useState(false)
-  const [pickerWinner, setPickerWinner] = useState(null)
   const [lastPun, setLastPun] = useState('')
   const [showPinChange, setShowPinChange] = useState(false)
   const [pinOld, setPinOld] = useState('')
@@ -96,12 +95,10 @@ function ParentDashboard({ onLogout, adminToken }) {
   const handleShuffleAssign = async () => {
     if (!nextKid) return
     setShowPicker(true)
-    setPickerWinner(null)
   }
 
-  const handlePickerComplete = async () => {
-    if (!nextKid) return
-    await assignShotgun(nextKid.id)
+  const handlePickerComplete = async (winner) => {
+    if (winner) await assignShotgun(winner.id)
     setShowPicker(false)
   }
 
@@ -237,9 +234,7 @@ function ParentDashboard({ onLogout, adminToken }) {
       {showPicker && (
         <ShufflePicker
           kids={kids}
-          winner={pickerWinner}
           onComplete={handlePickerComplete}
-          kidColor={nextKid?.color}
         />
       )}
 

@@ -34,10 +34,11 @@ function speakWinner(name) {
   window.speechSynthesis.speak(utterance)
 }
 
-export default function ShufflePicker({ kids, winner, onComplete, kidColor }) {
+export default function ShufflePicker({ kids, onComplete, kidColor }) {
   const [phase, setPhase] = useState('shuffle')
   const [shuffledAvatars, setShuffledAvatars] = useState([])
   const [revealed, setRevealed] = useState(false)
+  const [internalWinner, setInternalWinner] = useState(null)
   const intervalRef = useRef(null)
 
   useEffect(() => {
@@ -52,17 +53,19 @@ export default function ShufflePicker({ kids, winner, onComplete, kidColor }) {
 
       if (count >= max) {
         clearInterval(intervalRef.current)
+        const winner = kids[Math.floor(Math.random() * kids.length)]
+        setInternalWinner(winner)
         setPhase('reveal')
         setTimeout(() => {
           setRevealed(true)
-          if (winner) speakWinner(winner.name)
-          setTimeout(() => onComplete(), 3000)
+          speakWinner(winner.name)
+          setTimeout(() => onComplete(winner), 3000)
         }, 400)
       }
     }, 100)
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [kids, winner, onComplete])
+  }, [kids, onComplete])
 
   return (
     <div className="shuffle-overlay">
@@ -80,11 +83,11 @@ export default function ShufflePicker({ kids, winner, onComplete, kidColor }) {
           </div>
         )}
 
-        {phase === 'reveal' && winner && (
+        {phase === 'reveal' && internalWinner && (
           <div className={`shuffle-single-card ${revealed ? 'revealed' : ''}`}>
             <div className="shuffle-card-inner">
-              <span className="shuffle-card-avatar">{winner.avatar}</span>
-              <span className="shuffle-card-name" style={{ color: winner.color || kidColor }}>{winner.name}</span>
+              <span className="shuffle-card-avatar">{internalWinner.avatar}</span>
+              <span className="shuffle-card-name" style={{ color: internalWinner.color || kidColor }}>{internalWinner.name}</span>
             </div>
           </div>
         )}
@@ -92,7 +95,7 @@ export default function ShufflePicker({ kids, winner, onComplete, kidColor }) {
 
       {revealed && (
         <div className="shuffle-result">
-          <div className="shuffle-result-text" style={{ color: kidColor || winner?.color }}>
+          <div className="shuffle-result-text" style={{ color: kidColor || internalWinner?.color }}>
             ShotGun goes to...
           </div>
         </div>

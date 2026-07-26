@@ -27,7 +27,6 @@ export default function KidDashboard({ kid, onLogout }) {
   const [activeGame, setActiveGame] = useState(null)
   const [elapsed, setElapsed] = useState('00:00:00')
   const [showPicker, setShowPicker] = useState(false)
-  const [pickerWinner, setPickerWinner] = useState(null)
   const [allKids, setAllKids] = useState([])
   const fireConfetti = useConfetti()
 
@@ -69,19 +68,18 @@ export default function KidDashboard({ kid, onLogout }) {
 
   const handlePickShotgun = () => {
     setShowPicker(true)
-    setPickerWinner(null)
   }
 
-  const handlePickerComplete = async () => {
+  const handlePickerComplete = async (winner) => {
     setShowPicker(false)
 
-    if (pickerWinner) {
+    if (winner) {
       await fetch(`${API}/shotgun/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requested_by: kid.id, kid_id: pickerWinner.id })
+        body: JSON.stringify({ requested_by: kid.id, kid_id: winner.id })
       })
-      fireConfetti([pickerWinner.color, '#f59e0b', '#fff'])
+      fireConfetti([winner.color, '#f59e0b', '#fff'])
       refreshDashboard()
     }
   }
@@ -126,9 +124,7 @@ export default function KidDashboard({ kid, onLogout }) {
       {showPicker && (
         <ShufflePicker
           kids={allKids}
-          winner={pickerWinner}
           onComplete={handlePickerComplete}
-          kidColor={pickerWinner?.color}
         />
       )}
 

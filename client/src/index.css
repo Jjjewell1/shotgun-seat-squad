@@ -319,6 +319,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .pick-date { color: var(--text-secondary); font-size: 0.8rem; }
 
 /* === HISTORY EDIT === */
+.history-trip-num { display: inline-block; width: 28px; height: 28px; line-height: 28px; text-align: center; background: var(--bg-card-hover); border-radius: 50%; font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); margin-right: 8px; vertical-align: middle; }
 .history-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
 .history-header .section-title { margin-bottom: 0; }
 .history-totals { display: flex; gap: 16px; }

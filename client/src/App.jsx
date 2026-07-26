@@ -393,9 +393,12 @@ function ParentDashboard({ onLogout, adminToken }) {
               </div>
             )}
           </div>
-          {history.length > 0 ? history.map(item => (
+          {history.length > 0 ? history.map((item, idx) => (
             <div key={item.id} className="history-item">
-              <span className="history-kid" style={{ color: item.color }}>{item.avatar} {item.name}</span>
+              <span className="history-kid" style={{ color: item.color }}>
+                <span className="history-trip-num">#{history.length - idx}</span>
+                {item.avatar} {item.name}
+              </span>
               <span className="history-date">
                 {new Date(item.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
               </span>

@@ -460,6 +460,15 @@ app.patch('/api/shotgun/history/:id', requireAdmin, (req, res) => {
   });
 });
 
+app.delete('/api/shotgun/history/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const entry = data.history.find(h => h.id === id);
+  if (!entry) return res.status(404).json({ error: 'History entry not found' });
+  data.history = data.history.filter(h => h.id !== id);
+  saveData();
+  res.json({ success: true });
+});
+
 // === PENDING REQUEST ENDPOINTS ===
 
 app.get('/api/shotgun/request', (req, res) => {

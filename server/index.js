@@ -8,6 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILE = path.join(DATA_DIR, 'shotgun-data.json');
+const APP_URL = process.env.APP_URL || '';
 
 app.use(cors());
 app.use(express.json());
@@ -20,6 +21,30 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Admin access required' });
   }
   next();
+}
+
+// === PUSHOVER ===
+
+async function sendPushNotification(title, message, url) {
+  const userKey = process.env.PUSHOVER_USER_KEY;
+  const appToken = process.env.PUSHOVER_APP_TOKEN;
+  if (!userKey || !appToken) return;
+  try {
+    await fetch('https://api.pushover.net/1/messages.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: appToken,
+        user: userKey,
+        title,
+        message,
+        url: url || undefined,
+        url_title: url ? 'Approve or Deny' : undefined
+      })
+    });
+  } catch (err) {
+    console.error('Pushover notification failed:', err.message);
+  }
 }
 
 const CAR_PUNS = [
@@ -45,6 +70,24 @@ const CAR_PUNS = [
   "Co-pilot {name}, reporting for duty! ✈️"
 ];
 
+const VOICE_LINES = [
+  "Time to buckle up, buttercup!",
+  "Shotgun! No takebacks!",
+  "The road awaits, your highness!",
+  "Vroom vroom, here comes trouble!",
+  "Front seat VIP, coming through!",
+  "All eyes on the road... and the new champion!",
+  "Winner winner, car seat dinner!",
+  "Legends ride up front!",
+  "The throne is yours, your majesty!",
+  "Saddle up, partner!",
+  "Mission accepted, let's roll!",
+  "The chosen one has been selected!",
+  "Bow down to the shotgun monarch!",
+  "Adventure awaits in the front seat!",
+  "And the crowd goes wild!"
+];
+
 const EMOJI_OPTIONS = [
   '🚗', '🏎️', '🚕', '🚌', '🚓', '🚑', '🚒', '🚐', '🚚', '🚙',
   '🐶', '🐱', '🦄', '🐻', '🐼', '🦊', '🐸', '🦁', '🐯', '🐮',
@@ -57,7 +100,8 @@ let data = {
   kids: [],
   history: [],
   current: null,
-  pending_request: null
+  pending_request: null,
+  shotgun_picks: []
 };
 
 function loadData() {
@@ -66,6 +110,7 @@ function loadData() {
       const raw = fs.readFileSync(DATA_FILE, 'utf8');
       data = JSON.parse(raw);
       if (!data.admin_pin) data.admin_pin = '1234';
+      if (!data.shotgun_picks) data.shotgun_picks = [];
     } else {
       const defaultColors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B'];
       const names = ['Kenlee', 'Marcie', 'Annie', 'Jesse'];
@@ -92,7 +137,6 @@ function loadData() {
     console.error('Failed to load data:', err);
   }
 
-  // Migrate v1 kids that are missing fields
   let migrated = false;
   const defaultAvatars = ['🚗', '🏎️', '🚕', '🚙', '🚌', '🚓'];
   const defaultPassphrases = ['vroom', 'zoom', 'beep', 'honk', 'vroom', 'zoom'];
@@ -104,6 +148,7 @@ function loadData() {
       migrated = true;
     }
   });
+  if (!data.shotgun_picks) { data.shotgun_picks = []; migrated = true; }
   if (migrated) saveData();
 }
 
@@ -164,6 +209,10 @@ function computeAchievements(kidId) {
 function getRandomPun(name) {
   const pun = CAR_PUNS[Math.floor(Math.random() * CAR_PUNS.length)];
   return pun.replace(/{name}/g, name);
+}
+
+function getRandomVoiceLine() {
+  return VOICE_LINES[Math.floor(Math.random() * VOICE_LINES.length)];
 }
 
 // === AUTH ENDPOINTS ===
@@ -385,6 +434,32 @@ app.post('/api/shotgun/clear', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// === HISTORY EDIT ===
+
+app.patch('/api/shotgun/history/:id', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const entry = data.history.find(h => h.id === id);
+  if (!entry) return res.status(404).json({ error: 'History entry not found' });
+
+  const { duration_minutes, started_at } = req.body;
+  if (duration_minutes !== undefined) {
+    entry.duration_minutes = Math.max(0, parseInt(duration_minutes) || 0);
+  }
+  if (started_at !== undefined) {
+    entry.assigned_at = started_at;
+  }
+
+  saveData();
+
+  const kid = data.kids.find(k => k.id === entry.kid_id);
+  res.json({
+    ...entry,
+    name: kid ? kid.name : 'Unknown',
+    color: kid ? kid.color : '#6B7280',
+    avatar: kid ? kid.avatar : '🚗'
+  });
+});
+
 // === PENDING REQUEST ENDPOINTS ===
 
 app.get('/api/shotgun/request', (req, res) => {
@@ -399,6 +474,8 @@ app.post('/api/shotgun/request', (req, res) => {
   const target = data.kids.find(k => k.id === kid_id);
   if (!requester || !target) return res.status(404).json({ error: 'Kid not found' });
 
+  const secretToken = uuidv4();
+
   data.pending_request = {
     id: uuidv4(),
     requested_by: requester.id,
@@ -409,10 +486,29 @@ app.post('/api/shotgun/request', (req, res) => {
     kid_name: target.name,
     kid_avatar: target.avatar,
     kid_color: target.color,
+    secret_token: secretToken,
     created_at: new Date().toISOString()
   };
 
+  data.shotgun_picks.push({
+    id: data.pending_request.id,
+    requested_by: requester.id,
+    requested_by_name: requester.name,
+    kid_id: target.id,
+    kid_name: target.name,
+    created_at: data.pending_request.created_at,
+    status: 'pending'
+  });
+
   saveData();
+
+  const approveUrl = APP_URL ? `${APP_URL}/approve/${secretToken}` : '';
+  sendPushNotification(
+    'Shotgun Request! 🚗',
+    `${requester.name} picked ${target.name} for shotgun!`,
+    approveUrl
+  );
+
   res.json(data.pending_request);
 });
 
@@ -436,6 +532,9 @@ app.post('/api/shotgun/request/approve', requireAdmin, (req, res) => {
   data.current = { kid_id, started_at: now };
   data.history.push({ id: uuidv4(), kid_id, assigned_at: now, duration_minutes: 0 });
 
+  const pick = data.shotgun_picks.find(p => p.id === data.pending_request.id);
+  if (pick) pick.status = 'approved';
+
   const kid = data.kids.find(k => k.id === kid_id);
   const pun = getRandomPun(kid.name);
   const approved = { ...data.pending_request, approved: true };
@@ -446,11 +545,95 @@ app.post('/api/shotgun/request/approve', requireAdmin, (req, res) => {
 });
 
 app.post('/api/shotgun/request/deny', requireAdmin, (req, res) => {
+  const pick = data.shotgun_picks.find(p => p.id === data.pending_request?.id);
+  if (pick) pick.status = 'denied';
+
   const denied = data.pending_request;
   data.pending_request = null;
   saveData();
   res.json({ success: true, request: denied });
 });
+
+// === TOKEN-BASED APPROVE/DENY (no auth needed) ===
+
+app.get('/api/shotgun/approve/:token', (req, res) => {
+  if (!data.pending_request) return res.status(404).json({ error: 'No pending request', handled: true });
+  if (data.pending_request.secret_token !== req.params.token) {
+    return res.status(404).json({ error: 'Invalid or expired token', handled: true });
+  }
+  res.json(data.pending_request);
+});
+
+app.post('/api/shotgun/approve/:token', (req, res) => {
+  if (!data.pending_request) return res.status(404).json({ error: 'No pending request', handled: true });
+  if (data.pending_request.secret_token !== req.params.token) {
+    return res.status(404).json({ error: 'Invalid or expired token', handled: true });
+  }
+
+  const { kid_id } = data.pending_request;
+  const now = new Date().toISOString();
+
+  if (data.current && data.current.kid_id) {
+    const historyEntry = data.history.find(
+      h => h.kid_id === data.current.kid_id && h.assigned_at === data.current.started_at
+    );
+    if (historyEntry) {
+      const startedAt = new Date(data.current.started_at);
+      const duration = Math.floor((new Date(now) - startedAt) / 60000);
+      historyEntry.duration_minutes = duration;
+    }
+  }
+
+  data.current = { kid_id, started_at: now };
+  data.history.push({ id: uuidv4(), kid_id, assigned_at: now, duration_minutes: 0 });
+
+  const pick = data.shotgun_picks.find(p => p.id === data.pending_request.id);
+  if (pick) pick.status = 'approved';
+
+  const kid = data.kids.find(k => k.id === kid_id);
+  const pun = getRandomPun(kid.name);
+  const approved = { ...data.pending_request, approved: true };
+  data.pending_request = null;
+  saveData();
+
+  res.json({ success: true, pun, request: approved, voice_line: getRandomVoiceLine() });
+});
+
+app.post('/api/shotgun/deny/:token', (req, res) => {
+  if (!data.pending_request) return res.status(404).json({ error: 'No pending request', handled: true });
+  if (data.pending_request.secret_token !== req.params.token) {
+    return res.status(404).json({ error: 'Invalid or expired token', handled: true });
+  }
+
+  const pick = data.shotgun_picks.find(p => p.id === data.pending_request.id);
+  if (pick) pick.status = 'denied';
+
+  const denied = data.pending_request;
+  data.pending_request = null;
+  saveData();
+  res.json({ success: true, request: denied });
+});
+
+// === PICK LOG ===
+
+app.get('/api/shotgun/picks', requireAdmin, (req, res) => {
+  const picks = [...data.shotgun_picks].reverse();
+  res.json(picks);
+});
+
+app.delete('/api/shotgun/picks/:id', requireAdmin, (req, res) => {
+  data.shotgun_picks = data.shotgun_picks.filter(p => p.id !== req.params.id);
+  saveData();
+  res.json({ success: true });
+});
+
+app.delete('/api/shotgun/picks', requireAdmin, (req, res) => {
+  data.shotgun_picks = [];
+  saveData();
+  res.json({ success: true });
+});
+
+// === NEXT / HISTORY / STATS ===
 
 app.get('/api/shotgun/next', (req, res) => {
   if (data.kids.length === 0) return res.json(null);

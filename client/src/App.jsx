@@ -3,6 +3,7 @@ import Landing from './Landing'
 import ParentLogin from './ParentLogin'
 import KidLogin from './KidLogin'
 import KidDashboard from './KidDashboard'
+import ApprovePage from './ApprovePage'
 import ShufflePicker from './ShufflePicker'
 import useConfetti from './useConfetti'
 import Podium from './Podium'
@@ -16,6 +17,7 @@ function ParentDashboard({ onLogout, adminToken }) {
   const [nextKid, setNextKid] = useState(null)
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState([])
+  const [picks, setPicks] = useState([])
   const [activeTab, setActiveTab] = useState('dashboard')
   const [newKidName, setNewKidName] = useState('')
   const [elapsed, setElapsed] = useState('00:00:00')
@@ -32,20 +34,24 @@ function ParentDashboard({ onLogout, adminToken }) {
   const [editPassphrase, setEditPassphrase] = useState('')
   const [emojiOptions, setEmojiOptions] = useState([])
   const [pendingRequest, setPendingRequest] = useState(null)
+  const [editingHistory, setEditingHistory] = useState(null)
+  const [editDuration, setEditDuration] = useState('')
+  const [adjustMinutes, setAdjustMinutes] = useState('')
   const fireConfetti = useConfetti()
 
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }
 
   const fetchData = useCallback(async () => {
     try {
-      const [kidsRes, currentRes, nextRes, historyRes, statsRes, emojiRes, pendingRes] = await Promise.all([
+      const [kidsRes, currentRes, nextRes, historyRes, statsRes, emojiRes, pendingRes, picksRes] = await Promise.all([
         fetch(`${API}/kids`),
         fetch(`${API}/shotgun/current`),
         fetch(`${API}/shotgun/next`),
-        fetch(`${API}/shotgun/history?limit=20`),
+        fetch(`${API}/shotgun/history?limit=50`),
         fetch(`${API}/stats`),
         fetch(`${API}/emoji-options`),
-        fetch(`${API}/shotgun/request`)
+        fetch(`${API}/shotgun/request`),
+        fetch(`${API}/shotgun/picks`, { headers: authHeaders })
       ])
       setKids(await kidsRes.json())
       setCurrent(await currentRes.json())
@@ -54,6 +60,7 @@ function ParentDashboard({ onLogout, adminToken }) {
       setStats(await statsRes.json())
       setEmojiOptions(await emojiRes.json())
       setPendingRequest(await pendingRes.json())
+      setPicks(await picksRes.json())
     } catch (err) {
       console.error('Failed to fetch data:', err)
     }
@@ -125,6 +132,37 @@ function ParentDashboard({ onLogout, adminToken }) {
     fetchData()
   }
 
+  const saveHistoryEdit = async () => {
+    if (!editingHistory) return
+    await fetch(`${API}/shotgun/history/${editingHistory.id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ duration_minutes: parseInt(editDuration) || 0 })
+    })
+    setEditingHistory(null)
+    fetchData()
+  }
+
+  const adjustActiveTime = async () => {
+    if (!current || !adjustMinutes) return
+    const minutes = parseInt(adjustMinutes)
+    if (isNaN(minutes)) return
+
+    await fetch(`${API}/shotgun/clear`, { method: 'POST', headers: authHeaders })
+
+    const kid = kids.find(k => k.id === current.kid_id)
+    if (kid) {
+      await fetch(`${API}/shotgun/assign`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ kid_id: current.kid_id })
+      })
+    }
+
+    setAdjustMinutes('')
+    fetchData()
+  }
+
   const addKid = async (e) => {
     e.preventDefault()
     if (!newKidName.trim()) return
@@ -180,6 +218,18 @@ function ParentDashboard({ onLogout, adminToken }) {
     }
   }
 
+  const deletePick = async (id) => {
+    if (!confirm('Delete this pick entry?')) return
+    await fetch(`${API}/shotgun/picks/${id}`, { method: 'DELETE', headers: authHeaders })
+    fetchData()
+  }
+
+  const clearPicks = async () => {
+    if (!confirm('Clear all pick log entries?')) return
+    await fetch(`${API}/shotgun/picks`, { method: 'DELETE', headers: authHeaders })
+    fetchData()
+  }
+
   const maxRides = Math.max(...stats.map(s => s.total_rides), 1)
 
   return (
@@ -203,6 +253,7 @@ function ParentDashboard({ onLogout, adminToken }) {
         <button className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
         <button className={`tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>Stats</button>
         <button className={`tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>History</button>
+        <button className={`tab ${activeTab === 'picks' ? 'active' : ''}`} onClick={() => setActiveTab('picks')}>Pick Log</button>
         <button className={`tab ${activeTab === 'manage' ? 'active' : ''}`} onClick={() => setActiveTab('manage')}>Manage</button>
       </div>
 
@@ -225,6 +276,26 @@ function ParentDashboard({ onLogout, adminToken }) {
               <div className="current-empty">Nobody - ready for the next rider!</div>
             )}
           </div>
+
+          {current && (
+            <div className="adjust-time-section">
+              <div className="adjust-time-label">Manually Set Ride Time</div>
+              <div className="adjust-time-row">
+                <input
+                  type="number"
+                  className="adjust-time-input"
+                  placeholder="Minutes"
+                  value={adjustMinutes}
+                  onChange={e => setAdjustMinutes(e.target.value)}
+                  min="0"
+                />
+                <button className="btn btn-secondary btn-sm" onClick={adjustActiveTime} disabled={!adjustMinutes}>
+                  Set Time
+                </button>
+              </div>
+              <div className="adjust-time-hint">Sets the ride time and restarts the timer for {current.name}</div>
+            </div>
+          )}
 
           {pendingRequest && (
             <div className="pending-request-banner">
@@ -318,10 +389,62 @@ function ParentDashboard({ onLogout, adminToken }) {
               <span className="history-date">
                 {new Date(item.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
               </span>
-              <span className="history-duration">{item.duration_minutes > 0 ? `${item.duration_minutes} min` : '—'}</span>
+              {editingHistory?.id === item.id ? (
+                <span className="history-edit-inline">
+                  <input
+                    type="number"
+                    className="history-edit-input"
+                    value={editDuration}
+                    onChange={e => setEditDuration(e.target.value)}
+                    min="0"
+                    autoFocus
+                  />
+                  <span className="history-edit-unit">min</span>
+                  <button className="btn btn-primary btn-xs" onClick={saveHistoryEdit}>Save</button>
+                  <button className="btn btn-secondary btn-xs" onClick={() => setEditingHistory(null)}>Cancel</button>
+                </span>
+              ) : (
+                <span
+                  className="history-duration editable"
+                  onClick={() => { setEditingHistory(item); setEditDuration(String(item.duration_minutes || 0)) }}
+                  title="Click to edit"
+                >
+                  {item.duration_minutes > 0 ? `${item.duration_minutes} min` : '—'}
+                  <span className="edit-pencil">✏️</span>
+                </span>
+              )}
             </div>
           )) : (
             <div className="empty-state"><p>No history yet</p></div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'picks' && (
+        <div className="picks-section">
+          <div className="picks-header">
+            <div className="section-title">Pick Log</div>
+            {picks.length > 0 && (
+              <button className="btn btn-danger btn-sm" onClick={clearPicks}>Clear All</button>
+            )}
+          </div>
+          {picks.length > 0 ? picks.map(pick => (
+            <div key={pick.id} className={`pick-item pick-${pick.status}`}>
+              <div className="pick-info">
+                <span className="pick-requester">{pick.requested_by_name}</span>
+                <span className="pick-arrow">→</span>
+                <span className="pick-target">{pick.kid_name}</span>
+                <span className={`pick-status pick-status-${pick.status}`}>{pick.status}</span>
+              </div>
+              <div className="pick-meta">
+                <span className="pick-date">
+                  {new Date(pick.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </span>
+                <button className="btn btn-danger btn-xs" onClick={() => deletePick(pick.id)}>Delete</button>
+              </div>
+            </div>
+          )) : (
+            <div className="empty-state"><p>No picks yet</p></div>
           )}
         </div>
       )}
@@ -408,6 +531,11 @@ function ParentDashboard({ onLogout, adminToken }) {
 }
 
 export default function App() {
+  const path = window.location.pathname
+  if (path.startsWith('/approve/')) {
+    return <ApprovePage />
+  }
+
   const [view, setView] = useState('landing')
   const [selectedKid, setSelectedKid] = useState(null)
   const [adminToken, setAdminToken] = useState(null)

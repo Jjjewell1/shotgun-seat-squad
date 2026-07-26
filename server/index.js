@@ -654,6 +654,24 @@ app.get('/api/shotgun/next', (req, res) => {
   res.json(next);
 });
 
+app.get('/api/shotgun/fair-pool', (req, res) => {
+  if (data.kids.length === 0) return res.json([]);
+
+  const scored = data.kids.map(kid => ({
+    ...kid,
+    total_rides: getKidStats(kid.id).total_rides,
+    total_minutes: getKidStats(kid.id).total_minutes,
+    fairness_score: getFairnessScore(kid.id)
+  }));
+
+  scored.sort((a, b) => a.fairness_score - b.fairness_score);
+
+  const minScore = scored[0].fairness_score;
+  const fairPool = scored.filter(k => Math.abs(k.fairness_score - minScore) < 0.001);
+
+  res.json(fairPool);
+});
+
 app.get('/api/shotgun/history', (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const history = [...data.history]

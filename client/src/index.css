@@ -66,6 +66,18 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 
 .landing-empty { color: var(--text-secondary); padding: 40px; }
 
+.landing-current-banner { background: var(--bg-card); border: 2px solid var(--accent); border-radius: 16px; padding: 16px 20px; margin-bottom: 20px; animation: pulse-glow 2s ease-in-out infinite; }
+.landing-current-info { display: flex; align-items: center; gap: 12px; justify-content: center; }
+.landing-current-avatar { font-size: 2.5rem; }
+.landing-current-text { display: flex; flex-direction: column; }
+.landing-current-name { font-size: 1.2rem; font-weight: 700; }
+.landing-current-label { font-size: 0.8rem; color: var(--text-secondary); }
+.landing-current-timer { font-size: 1.1rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+.landing-pending-banner { background: rgba(245, 158, 11, 0.15); border: 1px solid var(--accent); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.85rem; color: var(--accent); text-align: center; }
+
+.approve-dashboard-btn { display: inline-block; margin-top: 24px; text-decoration: none; }
+
 /* === PARENT LOGIN === */
 .parent-login, .kid-login { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; }
 .back-btn { position: fixed; top: 20px; left: 20px; background: none; border: none; color: var(--text-secondary); font-size: 1.1rem; cursor: pointer; z-index: 10; }

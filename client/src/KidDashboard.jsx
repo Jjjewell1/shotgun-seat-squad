@@ -27,7 +27,7 @@ export default function KidDashboard({ kid, onLogout }) {
   const [activeGame, setActiveGame] = useState(null)
   const [elapsed, setElapsed] = useState('00:00:00')
   const [showPicker, setShowPicker] = useState(false)
-  const [allKids, setAllKids] = useState([])
+  const [fairPool, setFairPool] = useState([])
   const fireConfetti = useConfetti()
 
   const refreshDashboard = useCallback(() => {
@@ -38,7 +38,7 @@ export default function KidDashboard({ kid, onLogout }) {
 
   useEffect(() => {
     refreshDashboard()
-    fetch(`${API}/kids`).then(r => r.json()).then(setAllKids)
+    fetch(`${API}/shotgun/fair-pool`).then(r => r.json()).then(setFairPool)
   }, [refreshDashboard])
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function KidDashboard({ kid, onLogout }) {
     <div className="kid-dashboard">
       {showPicker && (
         <ShufflePicker
-          kids={allKids}
+          kids={fairPool}
           onComplete={handlePickerComplete}
         />
       )}

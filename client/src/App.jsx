@@ -18,6 +18,7 @@ function ParentDashboard({ onLogout, adminToken }) {
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState([])
   const [picks, setPicks] = useState([])
+  const [fairPool, setFairPool] = useState([])
   const [activeTab, setActiveTab] = useState('dashboard')
   const [newKidName, setNewKidName] = useState('')
   const [elapsed, setElapsed] = useState('00:00:00')
@@ -42,7 +43,7 @@ function ParentDashboard({ onLogout, adminToken }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const [kidsRes, currentRes, nextRes, historyRes, statsRes, emojiRes, pendingRes, picksRes] = await Promise.all([
+      const [kidsRes, currentRes, nextRes, historyRes, statsRes, emojiRes, pendingRes, picksRes, fairPoolRes] = await Promise.all([
         fetch(`${API}/kids`),
         fetch(`${API}/shotgun/current`),
         fetch(`${API}/shotgun/next`),
@@ -50,7 +51,8 @@ function ParentDashboard({ onLogout, adminToken }) {
         fetch(`${API}/stats`),
         fetch(`${API}/emoji-options`),
         fetch(`${API}/shotgun/request`),
-        fetch(`${API}/shotgun/picks`, { headers: authHeaders })
+        fetch(`${API}/shotgun/picks`, { headers: authHeaders }),
+        fetch(`${API}/shotgun/fair-pool`)
       ])
       setKids(await kidsRes.json())
       setCurrent(await currentRes.json())
@@ -60,6 +62,7 @@ function ParentDashboard({ onLogout, adminToken }) {
       setEmojiOptions(await emojiRes.json())
       setPendingRequest(await pendingRes.json())
       setPicks(await picksRes.json())
+      setFairPool(await fairPoolRes.json())
     } catch (err) {
       console.error('Failed to fetch data:', err)
     }
@@ -233,7 +236,7 @@ function ParentDashboard({ onLogout, adminToken }) {
     <div className="app">
       {showPicker && (
         <ShufflePicker
-          kids={kids}
+          kids={fairPool}
           onComplete={handlePickerComplete}
         />
       )}
@@ -531,7 +534,10 @@ export default function App() {
     return <ApprovePage />
   }
 
-  const [view, setView] = useState('landing')
+  const [view, setView] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('admin') === '1' ? 'parent-login' : 'landing'
+  })
   const [selectedKid, setSelectedKid] = useState(null)
   const [adminToken, setAdminToken] = useState(null)
 

@@ -31,19 +31,21 @@ function ParentDashboard({ onLogout, adminToken }) {
   const [editAvatar, setEditAvatar] = useState('')
   const [editPassphrase, setEditPassphrase] = useState('')
   const [emojiOptions, setEmojiOptions] = useState([])
+  const [pendingRequest, setPendingRequest] = useState(null)
   const fireConfetti = useConfetti()
 
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }
 
   const fetchData = useCallback(async () => {
     try {
-      const [kidsRes, currentRes, nextRes, historyRes, statsRes, emojiRes] = await Promise.all([
+      const [kidsRes, currentRes, nextRes, historyRes, statsRes, emojiRes, pendingRes] = await Promise.all([
         fetch(`${API}/kids`),
         fetch(`${API}/shotgun/current`),
         fetch(`${API}/shotgun/next`),
         fetch(`${API}/shotgun/history?limit=20`),
         fetch(`${API}/stats`),
-        fetch(`${API}/emoji-options`)
+        fetch(`${API}/emoji-options`),
+        fetch(`${API}/shotgun/request`)
       ])
       setKids(await kidsRes.json())
       setCurrent(await currentRes.json())
@@ -51,6 +53,7 @@ function ParentDashboard({ onLogout, adminToken }) {
       setHistory(await historyRes.json())
       setStats(await statsRes.json())
       setEmojiOptions(await emojiRes.json())
+      setPendingRequest(await pendingRes.json())
     } catch (err) {
       console.error('Failed to fetch data:', err)
     }
@@ -98,6 +101,27 @@ function ParentDashboard({ onLogout, adminToken }) {
   const clearShotgun = async () => {
     await fetch(`${API}/shotgun/clear`, { method: 'POST', headers: authHeaders })
     setLastPun('')
+    fetchData()
+  }
+
+  const approveRequest = async () => {
+    const res = await fetch(`${API}/shotgun/request/approve`, {
+      method: 'POST',
+      headers: authHeaders
+    })
+    const data = await res.json()
+    if (data.success) {
+      setLastPun(data.pun || '')
+      if (data.request?.kid_avatar) fireConfetti(['#f59e0b', '#fff'])
+    }
+    fetchData()
+  }
+
+  const denyRequest = async () => {
+    await fetch(`${API}/shotgun/request/deny`, {
+      method: 'POST',
+      headers: authHeaders
+    })
     fetchData()
   }
 
@@ -201,6 +225,26 @@ function ParentDashboard({ onLogout, adminToken }) {
               <div className="current-empty">Nobody - ready for the next rider!</div>
             )}
           </div>
+
+          {pendingRequest && (
+            <div className="pending-request-banner">
+              <div className="pending-request-info">
+                <span className="pending-request-avatar">{pendingRequest.kid_avatar}</span>
+                <div>
+                  <div className="pending-request-text">
+                    <strong style={{ color: pendingRequest.requested_by_color }}>{pendingRequest.requested_by_name}</strong>
+                    {' '}picked{' '}
+                    <strong style={{ color: pendingRequest.kid_color }}>{pendingRequest.kid_name}</strong>
+                  </div>
+                  <div className="pending-request-sub">Approve this shotgun pick?</div>
+                </div>
+              </div>
+              <div className="pending-request-actions">
+                <button className="btn btn-primary btn-sm" onClick={approveRequest}>✅ Approve</button>
+                <button className="btn btn-secondary btn-sm" onClick={denyRequest}>❌ Deny</button>
+              </div>
+            </div>
+          )}
 
           {nextKid && (
             <div className="next-section">

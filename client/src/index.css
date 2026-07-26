@@ -103,6 +103,20 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .kid-current-timer { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
 
 .kid-next-banner { background: var(--bg-card); border: 2px solid; border-radius: 16px; padding: 16px; text-align: center; font-weight: 700; margin-bottom: 20px; animation: pulse-glow 2s ease-in-out infinite; }
+
+.kid-pending-section { background: var(--bg-card); border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center; border: 2px solid var(--accent); animation: pulse-glow 2s ease-in-out infinite; }
+.kid-pending-text { font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 8px; }
+.kid-pending-target { font-size: 1.3rem; font-weight: 700; }
+
+.kid-pick-section { margin-bottom: 20px; text-align: center; }
+.kid-pick-btn { font-size: 1.1rem; padding: 16px 32px; }
+
+.pending-request-banner { background: var(--bg-card); border-radius: 16px; padding: 20px; margin-bottom: 20px; border: 2px solid var(--accent); display: flex; align-items: center; justify-content: space-between; animation: pulse-glow 2s ease-in-out infinite; }
+.pending-request-info { display: flex; align-items: center; gap: 12px; }
+.pending-request-avatar { font-size: 2rem; }
+.pending-request-text { font-size: 1rem; margin-bottom: 2px; }
+.pending-request-sub { font-size: 0.8rem; color: var(--text-secondary); }
+.pending-request-actions { display: flex; gap: 8px; }
 @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); } 50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.5); } }
 
 .kid-tabs { display: flex; gap: 8px; margin-bottom: 24px; background: var(--bg-card); padding: 8px; border-radius: 12px; flex-wrap: wrap; }

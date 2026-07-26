@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import BadgeDisplay from './BadgeDisplay'
 import Podium from './Podium'
+import ShufflePicker from './ShufflePicker'
+import useConfetti from './useConfetti'
 import TicTacToe from './games/TicTacToe'
 import DragRace from './games/DragRace'
 import TrafficDodge from './games/TrafficDodge'
@@ -24,13 +26,21 @@ export default function KidDashboard({ kid, onLogout }) {
   const [activeTab, setActiveTab] = useState('stats')
   const [activeGame, setActiveGame] = useState(null)
   const [elapsed, setElapsed] = useState('00:00:00')
-  const [pun, setPun] = useState('')
+  const [showPicker, setShowPicker] = useState(false)
+  const [pickerWinner, setPickerWinner] = useState(null)
+  const [allKids, setAllKids] = useState([])
+  const fireConfetti = useConfetti()
 
-  useEffect(() => {
+  const refreshDashboard = useCallback(() => {
     fetch(`${API}/kid/${kid.id}/dashboard`)
       .then(r => r.json())
       .then(setDashboard)
   }, [kid.id])
+
+  useEffect(() => {
+    refreshDashboard()
+    fetch(`${API}/kids`).then(r => r.json()).then(setAllKids)
+  }, [refreshDashboard])
 
   useEffect(() => {
     if (!dashboard?.current?.started_at) {
@@ -41,18 +51,12 @@ export default function KidDashboard({ kid, onLogout }) {
       const start = new Date(dashboard.current.started_at)
       const diff = Math.floor((Date.now() - start) / 1000)
       const h = String(Math.floor(diff / 3600)).padStart(2, '0')
-      const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0')
+      const m = String(Math.floor((diff % 3600) / 60).toString()).padStart(2, '0')
       const s = String(diff % 60).padStart(2, '0')
       setElapsed(`${h}:${m}:${s}`)
     }, 1000)
     return () => clearInterval(timer)
   }, [dashboard])
-
-  const refreshDashboard = () => {
-    fetch(`${API}/kid/${kid.id}/dashboard`)
-      .then(r => r.json())
-      .then(setDashboard)
-  }
 
   const handleHighscore = async (game, score) => {
     await fetch(`${API}/kids/${kid.id}/highscores`, {
@@ -62,6 +66,43 @@ export default function KidDashboard({ kid, onLogout }) {
     })
     refreshDashboard()
   }
+
+  const handlePickShotgun = () => {
+    setShowPicker(true)
+    setPickerWinner(null)
+  }
+
+  const handlePickerComplete = async () => {
+    setShowPicker(false)
+
+    if (pickerWinner) {
+      await fetch(`${API}/shotgun/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requested_by: kid.id, kid_id: pickerWinner.id })
+      })
+      fireConfetti([pickerWinner.color, '#f59e0b', '#fff'])
+      refreshDashboard()
+    }
+  }
+
+  const pollForApproval = useCallback(() => {
+    if (!dashboard?.pending_request) return
+    const interval = setInterval(async () => {
+      const res = await fetch(`${API}/shotgun/request`)
+      const req = await res.json()
+      if (!req) {
+        clearInterval(interval)
+        refreshDashboard()
+      }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [dashboard?.pending_request, refreshDashboard])
+
+  useEffect(() => {
+    const cleanup = pollForApproval()
+    return cleanup
+  }, [pollForApproval])
 
   if (!dashboard) return <div className="loading">Loading...</div>
 
@@ -82,6 +123,15 @@ export default function KidDashboard({ kid, onLogout }) {
 
   return (
     <div className="kid-dashboard">
+      {showPicker && (
+        <ShufflePicker
+          kids={allKids}
+          winner={pickerWinner}
+          onComplete={handlePickerComplete}
+          kidColor={pickerWinner?.color}
+        />
+      )}
+
       <header className="kid-header">
         <div className="kid-header-info">
           <span className="kid-header-avatar">{kid.avatar}</span>
@@ -101,6 +151,25 @@ export default function KidDashboard({ kid, onLogout }) {
             <span style={{ color: dashboard.current.color, fontWeight: 700 }}>{dashboard.current.name}</span>
             <span className="kid-current-timer">{elapsed}</span>
           </div>
+        </div>
+      )}
+
+      {dashboard.pending_request && (
+        <div className="kid-pending-section">
+          <div className="kid-pending-text">
+            ⏳ Request sent! Waiting for parent approval...
+          </div>
+          <div className="kid-pending-target">
+            {dashboard.pending_request.kid_avatar} {dashboard.pending_request.kid_name}
+          </div>
+        </div>
+      )}
+
+      {!dashboard.pending_request && !dashboard.current && (
+        <div className="kid-pick-section">
+          <button className="btn btn-primary kid-pick-btn" onClick={handlePickShotgun}>
+            🎲 Pick Shotgun!
+          </button>
         </div>
       )}
 

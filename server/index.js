@@ -56,7 +56,8 @@ let data = {
   admin_pin: '1234',
   kids: [],
   history: [],
-  current: null
+  current: null,
+  pending_request: null
 };
 
 function loadData() {
@@ -384,6 +385,73 @@ app.post('/api/shotgun/clear', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// === PENDING REQUEST ENDPOINTS ===
+
+app.get('/api/shotgun/request', (req, res) => {
+  res.json(data.pending_request || null);
+});
+
+app.post('/api/shotgun/request', (req, res) => {
+  const { requested_by, kid_id } = req.body;
+  if (!requested_by || !kid_id) return res.status(400).json({ error: 'requested_by and kid_id required' });
+
+  const requester = data.kids.find(k => k.id === requested_by);
+  const target = data.kids.find(k => k.id === kid_id);
+  if (!requester || !target) return res.status(404).json({ error: 'Kid not found' });
+
+  data.pending_request = {
+    id: uuidv4(),
+    requested_by: requester.id,
+    requested_by_name: requester.name,
+    requested_by_avatar: requester.avatar,
+    requested_by_color: requester.color,
+    kid_id: target.id,
+    kid_name: target.name,
+    kid_avatar: target.avatar,
+    kid_color: target.color,
+    created_at: new Date().toISOString()
+  };
+
+  saveData();
+  res.json(data.pending_request);
+});
+
+app.post('/api/shotgun/request/approve', requireAdmin, (req, res) => {
+  if (!data.pending_request) return res.status(404).json({ error: 'No pending request' });
+
+  const { kid_id } = data.pending_request;
+  const now = new Date().toISOString();
+
+  if (data.current && data.current.kid_id) {
+    const historyEntry = data.history.find(
+      h => h.kid_id === data.current.kid_id && h.assigned_at === data.current.started_at
+    );
+    if (historyEntry) {
+      const startedAt = new Date(data.current.started_at);
+      const duration = Math.floor((new Date(now) - startedAt) / 60000);
+      historyEntry.duration_minutes = duration;
+    }
+  }
+
+  data.current = { kid_id, started_at: now };
+  data.history.push({ id: uuidv4(), kid_id, assigned_at: now, duration_minutes: 0 });
+
+  const kid = data.kids.find(k => k.id === kid_id);
+  const pun = getRandomPun(kid.name);
+  const approved = { ...data.pending_request, approved: true };
+  data.pending_request = null;
+  saveData();
+
+  res.json({ success: true, pun, request: approved });
+});
+
+app.post('/api/shotgun/request/deny', requireAdmin, (req, res) => {
+  const denied = data.pending_request;
+  data.pending_request = null;
+  saveData();
+  res.json({ success: true, request: denied });
+});
+
 app.get('/api/shotgun/next', (req, res) => {
   if (data.kids.length === 0) return res.json(null);
 
@@ -475,7 +543,8 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
       const minScore = scored[0].fairness_score;
       const tied = scored.filter(k => Math.abs(k.fairness_score - minScore) < 0.001);
       return tied[Math.floor(Math.random() * tied.length)];
-    })() : null
+    })() : null,
+    pending_request: data.pending_request
   });
 });
 

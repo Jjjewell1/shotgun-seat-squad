@@ -169,7 +169,12 @@ app.post('/api/auth/kid', (req, res) => {
   const { kid_id, passphrase } = req.body;
   const kid = data.kids.find(k => k.id === kid_id);
   if (!kid) return res.status(404).json({ success: false, error: 'Kid not found' });
+  if (!kid.passphrase) {
+    kid.passphrase = 'vroom';
+    saveData();
+  }
   if (kid.passphrase.toLowerCase() === passphrase.toLowerCase()) {
+    if (!kid.avatar) kid.avatar = '🚗';
     res.json({ success: true, kid: { id: kid.id, name: kid.name, avatar: kid.avatar, color: kid.color } });
   } else {
     res.status(401).json({ success: false, error: 'Wrong passphrase' });

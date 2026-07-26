@@ -10,7 +10,7 @@ import BadgeDisplay from './BadgeDisplay'
 
 const API = '/api'
 
-function ParentDashboard({ onLogout }) {
+function ParentDashboard({ onLogout, adminToken }) {
   const [kids, setKids] = useState([])
   const [current, setCurrent] = useState(null)
   const [nextKid, setNextKid] = useState(null)
@@ -32,6 +32,8 @@ function ParentDashboard({ onLogout }) {
   const [editPassphrase, setEditPassphrase] = useState('')
   const [emojiOptions, setEmojiOptions] = useState([])
   const fireConfetti = useConfetti()
+
+  const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }
 
   const fetchData = useCallback(async () => {
     try {
@@ -71,7 +73,7 @@ function ParentDashboard({ onLogout }) {
   const assignShotgun = async (kidId) => {
     const res = await fetch(`${API}/shotgun/assign`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ kid_id: kidId })
     })
     const data = await res.json()
@@ -94,7 +96,7 @@ function ParentDashboard({ onLogout }) {
   }
 
   const clearShotgun = async () => {
-    await fetch(`${API}/shotgun/clear`, { method: 'POST' })
+    await fetch(`${API}/shotgun/clear`, { method: 'POST', headers: authHeaders })
     setLastPun('')
     fetchData()
   }
@@ -106,7 +108,7 @@ function ParentDashboard({ onLogout }) {
     const avatars = ['🚗', '🏎️', '🚕', '🚙', '🚌', '🚓']
     await fetch(`${API}/kids`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({
         name: newKidName.trim(),
         color: colors[kids.length % colors.length],
@@ -120,7 +122,7 @@ function ParentDashboard({ onLogout }) {
 
   const removeKid = async (kidId) => {
     if (!confirm('Remove this kid from the squad?')) return
-    await fetch(`${API}/kids/${kidId}`, { method: 'DELETE' })
+    await fetch(`${API}/kids/${kidId}`, { method: 'DELETE', headers: authHeaders })
     fetchData()
   }
 
@@ -128,7 +130,7 @@ function ParentDashboard({ onLogout }) {
     if (!editingKid) return
     await fetch(`${API}/kids/${editingKid.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ name: editName, avatar: editAvatar, passphrase: editPassphrase })
     })
     setEditingKid(null)
@@ -140,7 +142,7 @@ function ParentDashboard({ onLogout }) {
     setPinMsg('')
     const res = await fetch(`${API}/auth/admin/pin`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ old_pin: pinOld, new_pin: pinNew })
     })
     const data = await res.json()
@@ -364,6 +366,15 @@ function ParentDashboard({ onLogout }) {
 export default function App() {
   const [view, setView] = useState('landing')
   const [selectedKid, setSelectedKid] = useState(null)
+  const [adminToken, setAdminToken] = useState(null)
+
+  const handleParentLogout = async () => {
+    if (adminToken) {
+      await fetch(`${API}/auth/admin/logout`, { method: 'POST', headers: { 'Authorization': `Bearer ${adminToken}` } })
+    }
+    setAdminToken(null)
+    setView('landing')
+  }
 
   if (view === 'landing') {
     return (
@@ -377,7 +388,7 @@ export default function App() {
   if (view === 'parent-login') {
     return (
       <ParentLogin
-        onLogin={() => setView('parent')}
+        onLogin={(token) => { setAdminToken(token); setView('parent') }}
         onBack={() => setView('landing')}
       />
     )
@@ -394,7 +405,7 @@ export default function App() {
   }
 
   if (view === 'parent') {
-    return <ParentDashboard onLogout={() => setView('landing')} />
+    return <ParentDashboard onLogout={handleParentLogout} adminToken={adminToken} />
   }
 
   if (view === 'kid') {

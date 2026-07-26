@@ -12,6 +12,16 @@ const DATA_FILE = path.join(DATA_DIR, 'shotgun-data.json');
 app.use(cors());
 app.use(express.json());
 
+const adminSessions = new Set();
+
+function requireAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token || !adminSessions.has(token)) {
+    return res.status(401).json({ error: 'Admin access required' });
+  }
+  next();
+}
+
 const CAR_PUNS = [
   "Buckle up, {name}! 🎉",
   "{name} calls shotgun! 🎯",
@@ -146,13 +156,21 @@ function getRandomPun(name) {
 app.post('/api/auth/admin', (req, res) => {
   const { pin } = req.body;
   if (pin === data.admin_pin) {
-    res.json({ success: true });
+    const token = uuidv4();
+    adminSessions.add(token);
+    res.json({ success: true, token });
   } else {
     res.status(401).json({ success: false, error: 'Wrong PIN' });
   }
 });
 
-app.post('/api/auth/admin/pin', (req, res) => {
+app.post('/api/auth/admin/logout', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) adminSessions.delete(token);
+  res.json({ success: true });
+});
+
+app.post('/api/auth/admin/pin', requireAdmin, (req, res) => {
   const { old_pin, new_pin } = req.body;
   if (old_pin !== data.admin_pin) {
     return res.status(401).json({ success: false, error: 'Wrong current PIN' });
@@ -195,7 +213,7 @@ app.get('/api/kids', (req, res) => {
   res.json(kids);
 });
 
-app.post('/api/kids', (req, res) => {
+app.post('/api/kids', requireAdmin, (req, res) => {
   const { name, color, avatar, passphrase } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   if (name.length > 20) return res.status(400).json({ error: 'Name must be 20 characters or less' });
@@ -219,7 +237,7 @@ app.post('/api/kids', (req, res) => {
   res.status(201).json(kid);
 });
 
-app.patch('/api/kids/:id', (req, res) => {
+app.patch('/api/kids/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const kid = data.kids.find(k => k.id === id);
   if (!kid) return res.status(404).json({ error: 'Kid not found' });
@@ -265,7 +283,7 @@ app.put('/api/kids/:id/highscores', (req, res) => {
   res.json({ game_highscores: kid.game_highscores });
 });
 
-app.delete('/api/kids/:id', (req, res) => {
+app.delete('/api/kids/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   data.kids = data.kids.filter(k => k.id !== id);
   data.history = data.history.filter(h => h.kid_id !== id);
@@ -295,7 +313,7 @@ app.get('/api/shotgun/current', (req, res) => {
   });
 });
 
-app.post('/api/shotgun/assign', (req, res) => {
+app.post('/api/shotgun/assign', requireAdmin, (req, res) => {
   const { kid_id } = req.body;
   if (!kid_id) return res.status(400).json({ error: 'kid_id is required' });
 
@@ -335,7 +353,7 @@ app.post('/api/shotgun/assign', (req, res) => {
   });
 });
 
-app.post('/api/shotgun/clear', (req, res) => {
+app.post('/api/shotgun/clear', requireAdmin, (req, res) => {
   if (data.current && data.current.kid_id) {
     const now = new Date().toISOString();
     const historyEntry = data.history.find(

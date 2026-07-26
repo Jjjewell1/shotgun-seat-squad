@@ -19,7 +19,7 @@ export default function ParentLogin({ onLogin, onBack }) {
       })
       const data = await res.json()
       if (data.success) {
-        onLogin()
+        onLogin(data.token)
       } else {
         setError(true)
         setPin('')

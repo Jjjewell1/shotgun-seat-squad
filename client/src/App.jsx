@@ -27,6 +27,7 @@ function ParentDashboard({ onLogout }) {
   const [pinNew, setPinNew] = useState('')
   const [pinMsg, setPinMsg] = useState('')
   const [editingKid, setEditingKid] = useState(null)
+  const [editName, setEditName] = useState('')
   const [editAvatar, setEditAvatar] = useState('')
   const [editPassphrase, setEditPassphrase] = useState('')
   const [emojiOptions, setEmojiOptions] = useState([])
@@ -128,7 +129,7 @@ function ParentDashboard({ onLogout }) {
     await fetch(`${API}/kids/${editingKid.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatar: editAvatar, passphrase: editPassphrase })
+      body: JSON.stringify({ name: editName, avatar: editAvatar, passphrase: editPassphrase })
     })
     setEditingKid(null)
     fetchData()
@@ -282,7 +283,7 @@ function ParentDashboard({ onLogout }) {
       {activeTab === 'manage' && (
         <>
           <form className="add-kid-form" onSubmit={addKid}>
-            <input type="text" placeholder="Add a new kid..." value={newKidName} onChange={(e) => setNewKidName(e.target.value)} />
+            <input type="text" placeholder="Add a new kid..." value={newKidName} onChange={(e) => setNewKidName(e.target.value)} maxLength={20} />
             <button type="submit" className="btn btn-primary">Add</button>
           </form>
 
@@ -290,6 +291,7 @@ function ParentDashboard({ onLogout }) {
             {kids.map(kid => (
               <div key={kid.id} className="kid-card manage-kid-card" onClick={() => {
                 setEditingKid(kid)
+                setEditName(kid.name)
                 setEditAvatar(kid.avatar)
                 setEditPassphrase(kid.passphrase || '')
               }}>
@@ -310,6 +312,10 @@ function ParentDashboard({ onLogout }) {
             <div className="modal-overlay" onClick={() => setEditingKid(null)}>
               <div className="modal" onClick={e => e.stopPropagation()}>
                 <h3>Edit {editingKid.name}</h3>
+                <div className="modal-field">
+                  <label>Name</label>
+                  <input type="text" value={editName} onChange={e => setEditName(e.target.value)} maxLength={20} />
+                </div>
                 <div className="modal-field">
                   <label>Avatar</label>
                   <div className="emoji-picker-grid">

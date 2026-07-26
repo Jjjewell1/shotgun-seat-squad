@@ -198,6 +198,7 @@ app.get('/api/kids', (req, res) => {
 app.post('/api/kids', (req, res) => {
   const { name, color, avatar, passphrase } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (name.length > 20) return res.status(400).json({ error: 'Name must be 20 characters or less' });
   const kid = {
     id: uuidv4(),
     name,
@@ -224,7 +225,10 @@ app.patch('/api/kids/:id', (req, res) => {
   if (!kid) return res.status(404).json({ error: 'Kid not found' });
 
   const { name, color, avatar, passphrase } = req.body;
-  if (name !== undefined) kid.name = name;
+  if (name !== undefined) {
+    if (name.length > 20) return res.status(400).json({ error: 'Name must be 20 characters or less' });
+    kid.name = name;
+  }
   if (color !== undefined) kid.color = color;
   if (avatar !== undefined) kid.avatar = avatar;
   if (passphrase !== undefined) kid.passphrase = passphrase;

@@ -37,7 +37,6 @@ function ParentDashboard({ onLogout, adminToken }) {
   const [editingHistory, setEditingHistory] = useState(null)
   const [editDuration, setEditDuration] = useState('')
   const [adjustMinutes, setAdjustMinutes] = useState('')
-  const [swipedHistoryId, setSwipedHistoryId] = useState(null)
   const fireConfetti = useConfetti()
 
   const authHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` }
@@ -381,62 +380,57 @@ function ParentDashboard({ onLogout, adminToken }) {
 
       {activeTab === 'history' && (
         <div className="history-section">
-          <div className="section-title">Recent History</div>
-          {history.length > 0 ? history.map(item => (
-            <div key={item.id} className="history-swipe-container">
-              <div className="history-delete-bg">
-                <button className="history-delete-btn" onClick={() => {
-                  if (confirm('Delete this history entry?')) {
-                    fetch(`${API}/shotgun/history/${item.id}`, { method: 'DELETE', headers: authHeaders }).then(() => fetchData())
-                  }
-                }}>🗑️ Delete</button>
-              </div>
-              <div
-                className={`history-item history-swipe-item ${swipedHistoryId === item.id ? 'swiped' : ''}`}
-                onTouchStart={(e) => { e.currentTarget._touchStartX = e.touches[0].clientX }}
-                onTouchEnd={(e) => {
-                  const dx = e.changedTouches[0].clientX - (e.currentTarget._touchStartX || 0)
-                  if (dx < -60) setSwipedHistoryId(item.id)
-                  else setSwipedHistoryId(null)
-                }}
-                onClick={() => { if (swipedHistoryId === item.id) setSwipedHistoryId(null) }}
-              >
-                <span className="history-kid" style={{ color: item.color }}>{item.avatar} {item.name}</span>
-                <span className="history-date">
-                  {new Date(item.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          <div className="history-header">
+            <div className="section-title">Recent History</div>
+            {history.length > 0 && (
+              <div className="history-totals">
+                <span className="history-total-item">
+                  <span className="history-total-value">{history.length}</span> rides
                 </span>
-                {editingHistory?.id === item.id ? (
-                  <span className="history-edit-inline">
-                    <input
-                      type="number"
-                      className="history-edit-input"
-                      value={editDuration}
-                      onChange={e => setEditDuration(e.target.value)}
-                      min="0"
-                      autoFocus
-                    />
-                    <span className="history-edit-unit">min</span>
-                    <button className="btn btn-primary btn-xs" onClick={saveHistoryEdit}>Save</button>
-                    <button className="btn btn-secondary btn-xs" onClick={() => setEditingHistory(null)}>Cancel</button>
-                  </span>
-                ) : (
-                  <span className="history-actions">
-                    <span
-                      className="history-duration editable"
-                      onClick={() => { setEditingHistory(item); setEditDuration(String(item.duration_minutes || 0)) }}
-                      title="Click to edit"
-                    >
-                      {item.duration_minutes > 0 ? `${item.duration_minutes} min` : '—'}
-                      <span className="edit-pencil">✏️</span>
-                    </span>
-                    <button className="history-delete-icon" onClick={() => {
-                      if (confirm('Delete this history entry?')) {
-                        fetch(`${API}/shotgun/history/${item.id}`, { method: 'DELETE', headers: authHeaders }).then(() => fetchData())
-                      }
-                    }}>🗑️</button>
-                  </span>
-                )}
+                <span className="history-total-item">
+                  <span className="history-total-value">{history.reduce((sum, h) => sum + (h.duration_minutes || 0), 0)}</span> min total
+                </span>
               </div>
+            )}
+          </div>
+          {history.length > 0 ? history.map(item => (
+            <div key={item.id} className="history-item">
+              <span className="history-kid" style={{ color: item.color }}>{item.avatar} {item.name}</span>
+              <span className="history-date">
+                {new Date(item.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              </span>
+              {editingHistory?.id === item.id ? (
+                <span className="history-edit-inline">
+                  <input
+                    type="number"
+                    className="history-edit-input"
+                    value={editDuration}
+                    onChange={e => setEditDuration(e.target.value)}
+                    min="0"
+                    autoFocus
+                  />
+                  <span className="history-edit-unit">min</span>
+                  <button className="btn btn-primary btn-xs" onClick={saveHistoryEdit}>Save</button>
+                  <button className="btn btn-danger btn-xs" onClick={() => {
+                    if (confirm('Delete this history entry?')) {
+                      fetch(`${API}/shotgun/history/${item.id}`, { method: 'DELETE', headers: authHeaders }).then(() => {
+                        setEditingHistory(null)
+                        fetchData()
+                      })
+                    }
+                  }}>Delete</button>
+                  <button className="btn btn-secondary btn-xs" onClick={() => setEditingHistory(null)}>Cancel</button>
+                </span>
+              ) : (
+                <span
+                  className="history-duration editable"
+                  onClick={() => { setEditingHistory(item); setEditDuration(String(item.duration_minutes || 0)) }}
+                  title="Click to edit"
+                >
+                  {item.duration_minutes > 0 ? `${item.duration_minutes} min` : '—'}
+                  <span className="edit-pencil">✏️</span>
+                </span>
+              )}
             </div>
           )) : (
             <div className="empty-state"><p>No history yet</p></div>

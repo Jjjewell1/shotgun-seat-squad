@@ -90,6 +90,20 @@ function loadData() {
   } catch (err) {
     console.error('Failed to load data:', err);
   }
+
+  // Migrate v1 kids that are missing fields
+  let migrated = false;
+  const defaultAvatars = ['🚗', '🏎️', '🚕', '🚙', '🚌', '🚓'];
+  const defaultPassphrases = ['vroom', 'zoom', 'beep', 'honk', 'vroom', 'zoom'];
+  data.kids.forEach((kid, i) => {
+    if (!kid.avatar) { kid.avatar = defaultAvatars[i % defaultAvatars.length]; migrated = true; }
+    if (!kid.passphrase) { kid.passphrase = defaultPassphrases[i % defaultPassphrases.length]; migrated = true; }
+    if (!kid.game_highscores) {
+      kid.game_highscores = { tictactoe: 0, dragrace_wins: 0, memory_best: null, traffic_dodge_best: 0, license_best: null, pitstop_best: 0 };
+      migrated = true;
+    }
+  });
+  if (migrated) saveData();
 }
 
 function saveData() {

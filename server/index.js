@@ -1062,7 +1062,7 @@ const COMFYUI_NEGATIVE = process.env.CARTOON_NEGATIVE ||
 const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'DreamShaper_8_pruned.safetensors';
 const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '25');
 const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '7');
-const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.6');
+const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.4');
 
 const AVATAR_STYLES = {
   cartoon: 'cartoon avatar, flat illustration, Bitmoji style, clean vector art, bright saturated colors, cute friendly face, digital art, smooth shading',

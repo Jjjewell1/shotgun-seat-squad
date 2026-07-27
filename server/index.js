@@ -1057,16 +1057,39 @@ app.get('/api/capabilities', async (req, res) => {
 });
 
 // === COMFYUI CARTOON AVATAR ===
-const COMFYUI_PROMPT = process.env.CARTOON_PROMPT ||
-  'cartoon avatar, flat illustration, Bitmoji style, clean vector art, bright saturated colors, simple white background, cute friendly face, digital art, smooth shading';
 const COMFYUI_NEGATIVE = process.env.CARTOON_NEGATIVE ||
-  'realistic, photographic, dark, scary, ugly, deformed, blurry, text, watermark, low quality, bad anatomy';
+  'realistic, photographic, dark, scary, ugly, deformed, blurry, text, watermark, low quality, bad anatomy, nsfw, nude';
 const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'DreamShaper_8_pruned.safetensors';
 const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '25');
 const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '7');
 const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.6');
 
-function buildCartoonWorkflow(imageName) {
+const AVATAR_STYLES = {
+  cartoon: 'cartoon avatar, flat illustration, Bitmoji style, clean vector art, bright saturated colors, cute friendly face, digital art, smooth shading',
+  anime: 'anime style portrait, manga illustration, cel shading, vibrant colors, clean lines, detailed eyes, anime aesthetic',
+  pixar: '3D render portrait, Pixar style, Disney character, smooth lighting, plastic skin, subsurface scattering, cheerful expression',
+  watercolor: 'watercolor painting portrait, soft edges, paint drips, artistic brush strokes, dreamy atmosphere, pastel colors',
+  comic: 'comic book art portrait, bold black outlines, halftone dots, action hero style, dynamic shading, pop art colors',
+  pixel: 'pixel art portrait, 16-bit retro game character, crisp pixels, nostalgic style, limited color palette',
+  chibi: 'chibi style, super deformed cute character, small body big head, kawaii, adorable expression, sparkly eyes'
+};
+
+const AVATAR_BACKGROUNDS = {
+  white: 'simple clean white background',
+  rainbow: 'colorful rainbow gradient background, vibrant',
+  space: 'galaxy stars space background, nebula, cosmic purple blue',
+  beach: 'tropical beach sunset background, palm trees, orange sky, ocean waves',
+  nature: 'forest trees nature background, green leaves, sunny meadow, butterflies',
+  city: 'city skyline background, colorful buildings, urban landscape',
+  lightning: 'electric lightning bolts background, energy, dramatic sky, exciting',
+  gaming: 'neon gaming background, digital grid, futuristic, glowing'
+};
+
+function buildCartoonWorkflow(imageName, style, background) {
+  const stylePrompt = AVATAR_STYLES[style] || AVATAR_STYLES.cartoon;
+  const bgPrompt = AVATAR_BACKGROUNDS[background] || AVATAR_BACKGROUNDS.white;
+  const fullPrompt = `${stylePrompt}, ${bgPrompt}, portrait, centered face, high quality`;
+
   return {
     "3": {
       "inputs": {
@@ -1092,7 +1115,7 @@ function buildCartoonWorkflow(imageName) {
       "class_type": "VAEEncode"
     },
     "6": {
-      "inputs": { "text": COMFYUI_PROMPT, "clip": ["4", 1] },
+      "inputs": { "text": fullPrompt, "clip": ["4", 1] },
       "class_type": "CLIPTextEncode"
     },
     "7": {
@@ -1161,7 +1184,8 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     const inputImageName = uploadResult.name;
 
     // Submit workflow
-    const workflow = buildCartoonWorkflow(inputImageName);
+    const { style, background } = req.body || {};
+    const workflow = buildCartoonWorkflow(inputImageName, style, background);
     const promptResp = await fetch(`${COMFYUI_URL}/prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -2,6 +2,27 @@ import { useState, useRef, useEffect } from 'react'
 
 const API = '/api'
 
+const STYLES = [
+  { id: 'cartoon', icon: '🎨', name: 'Cartoon', desc: 'Bitmoji flat art' },
+  { id: 'anime', icon: '🌸', name: 'Anime', desc: 'Manga style' },
+  { id: 'pixar', icon: '🏰', name: 'Pixar', desc: '3D Disney look' },
+  { id: 'watercolor', icon: '🖌️', name: 'Watercolor', desc: 'Painting style' },
+  { id: 'comic', icon: '💥', name: 'Comic', desc: 'Action hero' },
+  { id: 'pixel', icon: '👾', name: 'Pixel Art', desc: 'Retro 16-bit' },
+  { id: 'chibi', icon: '🐱', name: 'Chibi', desc: 'Super cute' }
+]
+
+const BACKGROUNDS = [
+  { id: 'white', icon: '⬜', name: 'Clean' },
+  { id: 'rainbow', icon: '🌈', name: 'Rainbow' },
+  { id: 'space', icon: '🚀', name: 'Space' },
+  { id: 'beach', icon: '🏖️', name: 'Beach' },
+  { id: 'nature', icon: '🌲', name: 'Nature' },
+  { id: 'city', icon: '🏙️', name: 'City' },
+  { id: 'lightning', icon: '⚡', name: 'Lightning' },
+  { id: 'gaming', icon: '🎮', name: 'Gaming' }
+]
+
 // === Canvas-based cartoon filter (fallback when ComfyUI unavailable) ===
 
 function bilateralFilter(src, w, h, radius, sigmaSpace, sigmaColor) {
@@ -118,8 +139,10 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   const [cartoonized, setCartoonized] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [mode, setMode] = useState(null) // 'ai' | 'canvas' | null (not yet detected)
+  const [mode, setMode] = useState(null)
   const [message, setMessage] = useState('')
+  const [selectedStyle, setSelectedStyle] = useState('cartoon')
+  const [selectedBg, setSelectedBg] = useState('white')
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -144,7 +167,6 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
     if (cartoonized) URL.revokeObjectURL(cartoonized)
     setCartoonized(null)
     setMessage('')
-
     const url = URL.createObjectURL(file)
     setOriginal(url)
     setOriginalFile(file)
@@ -153,10 +175,14 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   const processWithAI = async () => {
     if (!originalFile || !kid?._token) return
     setProcessing(true)
-    setMessage('Generating cartoon avatar... this takes a few seconds')
+    const styleName = STYLES.find(s => s.id === selectedStyle)?.name || 'Cartoon'
+    const bgName = BACKGROUNDS.find(b => b.id === selectedBg)?.name || 'Clean'
+    setMessage(`Generating ${styleName} avatar with ${bgName} background...`)
     try {
       const formData = new FormData()
       formData.append('avatar', originalFile)
+      formData.append('style', selectedStyle)
+      formData.append('background', selectedBg)
       const res = await fetch(`${API}/kids/${kid.id}/avatar/cartoonize`, {
         method: 'POST',
         headers: getAuthHeaders(kid, adminToken),
@@ -165,7 +191,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       const data = await res.json()
       if (data.success) {
         setCartoonized(data.avatar_url + '&t=' + Date.now())
-        setMessage('AI cartoon avatar ready!')
+        setMessage('AI avatar ready!')
       } else {
         setMessage(data.error || 'AI generation failed')
       }
@@ -210,9 +236,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
     try {
       setMessage('Avatar saved!')
       if (onAvatarSaved) onAvatarSaved(cartoonized.split('&')[0])
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const handleSaveCanvas = async () => {
@@ -238,9 +262,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       }
     } catch (err) {
       setMessage('Failed to save avatar')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const handleRemove = async () => {
@@ -251,23 +273,16 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       })
       if (original) URL.revokeObjectURL(original)
       if (cartoonized) URL.revokeObjectURL(cartoonized)
-      setOriginal(null)
-      setOriginalFile(null)
-      setCartoonized(null)
+      setOriginal(null); setOriginalFile(null); setCartoonized(null)
       setMessage('Avatar removed')
       if (onAvatarSaved) onAvatarSaved(null)
-    } catch (err) {
-      setMessage('Failed to remove avatar')
-    }
+    } catch (err) { setMessage('Failed to remove avatar') }
   }
 
   const handleReset = () => {
     if (original) URL.revokeObjectURL(original)
     if (cartoonized) URL.revokeObjectURL(cartoonized)
-    setOriginal(null)
-    setOriginalFile(null)
-    setCartoonized(null)
-    setMessage('')
+    setOriginal(null); setOriginalFile(null); setCartoonized(null); setMessage('')
   }
 
   const isAI = mode === 'ai'
@@ -290,14 +305,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       )}
 
       <div className="cartoon-upload" onClick={() => !processing && !original && fileInputRef.current?.click()}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="user"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
+        <input ref={fileInputRef} type="file" accept="image/*" capture="user" onChange={handleFileSelect} style={{ display: 'none' }} />
         {original ? (
           <div className="cartoon-preview-row">
             <div className="cartoon-preview-card">
@@ -305,24 +313,18 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
               <span className="cartoon-preview-label">Photo</span>
             </div>
             <div className="cartoon-preview-arrow">
-              {processing ? (
-                isAI ? <span className="cartoon-ai-spinner">🎨</span> : '⏳'
-              ) : '→'}
+              {processing ? (isAI ? <span className="cartoon-ai-spinner">🎨</span> : '⏳') : '→'}
             </div>
             <div className="cartoon-preview-card">
               {cartoonized ? (
-                <img
-                  src={cartoonized}
-                  alt="Cartoon"
-                  className="cartoon-preview-img"
-                  onError={(e) => { e.target.style.display = 'none' }}
-                />
+                <img src={cartoonized} alt="Cartoon" className="cartoon-preview-img"
+                  onError={(e) => { e.target.style.display = 'none' }} />
               ) : (
                 <div className="cartoon-preview-placeholder">
                   {processing ? (isAI ? '🤖' : '🎨') : '?'}
                 </div>
               )}
-              <span className="cartoon-preview-label">{isAI ? 'AI Cartoon' : 'Cartoon'}</span>
+              <span className="cartoon-preview-label">{isAI ? 'AI Result' : 'Cartoon'}</span>
             </div>
           </div>
         ) : (
@@ -333,14 +335,45 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
         )}
       </div>
 
+      {original && isAI && !cartoonized && !processing && (
+        <div className="cartoon-options">
+          <div className="cartoon-option-group">
+            <label className="cartoon-option-label">Style</label>
+            <div className="cartoon-option-scroll">
+              {STYLES.map(s => (
+                <button key={s.id}
+                  className={`cartoon-option-card ${selectedStyle === s.id ? 'active' : ''}`}
+                  onClick={() => setSelectedStyle(s.id)}>
+                  <span className="cartoon-option-icon">{s.icon}</span>
+                  <span className="cartoon-option-name">{s.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="cartoon-option-group">
+            <label className="cartoon-option-label">Background</label>
+            <div className="cartoon-option-scroll">
+              {BACKGROUNDS.map(b => (
+                <button key={b.id}
+                  className={`cartoon-option-card ${selectedBg === b.id ? 'active' : ''}`}
+                  onClick={() => setSelectedBg(b.id)}>
+                  <span className="cartoon-option-icon">{b.icon}</span>
+                  <span className="cartoon-option-name">{b.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {original && !cartoonized && !processing && (
         <div className="cartoon-actions">
           {isAI ? (
-            <button className="btn btn-primary" onClick={processWithAI}>🎨 Generate AI Cartoon</button>
+            <button className="btn btn-primary" onClick={processWithAI}>🎨 Generate Avatar</button>
           ) : null}
-          <button className="btn btn-secondary" onClick={isAI ? processWithCanvas : processWithCanvas}>
-            {isAI ? 'Use Basic Filter Instead' : '✨ Apply Filter'}
-          </button>
+          {!isAI && (
+            <button className="btn btn-primary" onClick={processWithCanvas}>✨ Apply Filter</button>
+          )}
           <button className="btn btn-secondary" onClick={handleReset}>Cancel</button>
         </div>
       )}
@@ -358,14 +391,10 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
         <div className="cartoon-processing">
           {isAI ? (
             <>
-              <div className="cartoon-ai-progress">
-                <div className="cartoon-ai-progress-bar" />
-              </div>
+              <div className="cartoon-ai-progress"><div className="cartoon-ai-progress-bar" /></div>
               <p>AI is drawing your avatar... (usually 5-15 seconds)</p>
             </>
-          ) : (
-            <p>Applying cartoon filter...</p>
-          )}
+          ) : <p>Applying cartoon filter...</p>}
         </div>
       )}
 

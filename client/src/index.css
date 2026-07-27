@@ -545,6 +545,26 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .cartoon-ai-spinner { animation: cartoon-ai-pulse 1s ease-in-out infinite; display: inline-block; }
 @keyframes cartoon-ai-pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
 
+/* === STYLE & BACKGROUND PICKER === */
+.cartoon-options { margin-top: 16px; }
+.cartoon-option-group { margin-bottom: 14px; }
+.cartoon-option-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 8px; display: block; }
+.cartoon-option-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.cartoon-option-scroll::-webkit-scrollbar { height: 4px; }
+.cartoon-option-scroll::-webkit-scrollbar-track { background: transparent; }
+.cartoon-option-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.cartoon-option-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 10px 12px; min-width: 64px; border-radius: 12px; cursor: pointer;
+  background: var(--bg-card); border: 2px solid transparent;
+  transition: all 0.15s ease; flex-shrink: 0;
+}
+.cartoon-option-card:hover { border-color: var(--accent); background: var(--bg-card-hover); }
+.cartoon-option-card.active { border-color: var(--accent); background: rgba(139, 92, 246, 0.15); }
+.cartoon-option-icon { font-size: 1.5rem; }
+.cartoon-option-name { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.cartoon-option-card.active .cartoon-option-name { color: var(--accent); }
+
 .kid-avatar-photo { border-radius: 50%; object-fit: cover; }
 .landing-kid-avatar-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
 .kid-header-avatar-img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }

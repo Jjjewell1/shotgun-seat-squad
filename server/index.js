@@ -1062,33 +1062,32 @@ const COMFYUI_NEGATIVE = process.env.CARTOON_NEGATIVE ||
 const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'DreamShaper_8_pruned.safetensors';
 const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '25');
 const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '7');
-const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.4');
+const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.5');
 
 const AVATAR_STYLES = {
-  cartoon: 'cartoon avatar, flat illustration, Bitmoji style, clean vector art, bright saturated colors, cute friendly face, digital art, smooth shading',
-  anime: 'anime style portrait, manga illustration, cel shading, vibrant colors, clean lines, detailed eyes, anime aesthetic',
-  pixar: '3D render portrait, Pixar style, Disney character, smooth lighting, plastic skin, subsurface scattering, cheerful expression',
-  watercolor: 'watercolor painting portrait, soft edges, paint drips, artistic brush strokes, dreamy atmosphere, pastel colors',
-  comic: 'comic book art portrait, bold black outlines, halftone dots, action hero style, dynamic shading, pop art colors',
-  pixel: 'pixel art portrait, 16-bit retro game character, crisp pixels, nostalgic style, limited color palette',
-  chibi: 'chibi style, super deformed cute character, small body big head, kawaii, adorable expression, sparkly eyes'
+  cartoon: 'flat vector cartoon avatar, bold outlines, bright saturated colors, Bitmoji style, clean digital illustration, simple flat shading, cheerful expression, centered portrait',
+  anime: 'anime manga portrait, large expressive eyes, cel shading with sharp shadows, vibrant saturated colors, detailed hair strands, clean ink lines, Japanese illustration style, dynamic pose',
+  pixar: '3D Pixar Disney render, smooth plastic skin, subsurface scattering, big friendly eyes, round soft features, cheerful smile, studio lighting, toy-like character, high detail',
+  watercolor: 'watercolor painting, visible brush strokes, soft bleeding edges, paint drips and splashes, pastel dreamy colors, artistic paper texture, loose painterly style, impressionistic portrait',
+  comic: 'Marvel DC comic book art, bold heavy black ink outlines, Ben-Day halftone dots, dynamic action pose, bright pop art primary colors, dramatic lighting, superhero style, punchy contrast',
+  pixel: '16-bit pixel art portrait, crisp square pixels, limited retro color palette, NES SNES game style, chunky pixel grid, nostalgic retro gaming aesthetic, scanlines',
+  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, baby proportions, adorable expression, Japanese kawaii mascot style'
 };
 
 const AVATAR_BACKGROUNDS = {
-  white: 'simple clean white background',
-  rainbow: 'colorful rainbow gradient background, vibrant',
-  space: 'galaxy stars space background, nebula, cosmic purple blue',
-  beach: 'tropical beach sunset background, palm trees, orange sky, ocean waves',
-  nature: 'forest trees nature background, green leaves, sunny meadow, butterflies',
-  city: 'city skyline background, colorful buildings, urban landscape',
-  lightning: 'electric lightning bolts background, energy, dramatic sky, exciting',
-  gaming: 'neon gaming background, digital grid, futuristic, glowing'
+  white: 'pure white background',
+  rainbow: 'vibrant rainbow gradient, colorful stripes, cheerful',
+  space: 'deep space galaxy, twinkling stars, colorful nebula clouds, cosmic',
+  beach: 'tropical beach, golden sand, palm trees, turquoise ocean, sunset sky',
+  nature: 'lush green forest, wildflowers, butterflies, sunny meadow, nature',
+  city: 'colorful city skyline, buildings, urban rooftop, cityscape panorama',
+  lightning: 'dramatic electric lightning bolts, purple blue energy, stormy sky',
+  gaming: 'neon glow gaming setup, digital grid, cyberpunk, futuristic'
 };
 
 function buildCartoonWorkflow(imageName, style, background) {
   const stylePrompt = AVATAR_STYLES[style] || AVATAR_STYLES.cartoon;
-  const bgPrompt = AVATAR_BACKGROUNDS[background] || AVATAR_BACKGROUNDS.white;
-  const fullPrompt = `${stylePrompt}, ${bgPrompt}, portrait, centered face, high quality`;
+  const fullPrompt = `${stylePrompt}, isolated character on pure white background, single person portrait, centered face, high quality`;
 
   return {
     "3": {
@@ -1151,11 +1150,14 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     if (!kid) return res.status(404).json({ error: 'Kid not found' });
     if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
-    // Resize to 512x512 and get raw PNG bytes
     const resizedBuffer = await sharp(req.file.buffer)
       .resize(512, 512, { fit: 'cover' })
       .png()
       .toBuffer();
+
+    // Cache source image for regeneration
+    const sourcePath = path.join(AVATARS_DIR, `${id}_source.png`);
+    await sharp(resizedBuffer).png().toFile(sourcePath);
 
     // Upload to ComfyUI
     const boundary = '----FormBoundary' + uuidv4().replace(/-/g, '');
@@ -1183,9 +1185,8 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     const uploadResult = await uploadResp.json();
     const inputImageName = uploadResult.name;
 
-    // Submit workflow
-    const { style, background } = req.body || {};
-    const workflow = buildCartoonWorkflow(inputImageName, style, background);
+    const { style } = req.body || {};
+    const workflow = buildCartoonWorkflow(inputImageName, style, 'white');
     const promptResp = await fetch(`${COMFYUI_URL}/prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1201,7 +1202,6 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     const promptResult = await promptResp.json();
     const promptId = promptResult.prompt_id;
 
-    // Poll for completion (max 60s)
     let outputFilename = null;
     for (let i = 0; i < 30; i++) {
       await new Promise(r => setTimeout(r, 2000));
@@ -1224,7 +1224,6 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
       return res.status(504).json({ error: 'Image generation timed out (60s)' });
     }
 
-    // Download result
     const imgResp = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(outputFilename)}&type=output`);
     if (!imgResp.ok) {
       return res.status(502).json({ error: 'Failed to download generated image' });
@@ -1232,7 +1231,6 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     const imgArrayBuffer = await imgResp.arrayBuffer();
     const imgBuffer = Buffer.from(imgArrayBuffer);
 
-    // Save to avatars dir, resize to 256x256
     const filepath = path.join(AVATARS_DIR, `${id}.png`);
     await sharp(imgBuffer)
       .resize(256, 256, { fit: 'cover' })
@@ -1245,6 +1243,111 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
   } catch (err) {
     console.error('Cartoonize error:', err);
     res.status(500).json({ error: 'Failed to cartoonize avatar' });
+  }
+});
+
+// Regenerate cartoon with different style — uses cached source image
+app.post('/api/kids/:id/avatar/regenerate', requireKidOrAdmin, async (req, res) => {
+  if (!COMFYUI_URL) {
+    return res.status(503).json({ error: 'Stable Diffusion not configured.' });
+  }
+
+  try {
+    const { id } = req.params;
+    if (req.authType === 'kid' && req.kidId !== id) {
+      return res.status(403).json({ error: 'Can only update your own avatar' });
+    }
+    const kid = data.kids.find(k => k.id === id);
+    if (!kid) return res.status(404).json({ error: 'Kid not found' });
+
+    const sourcePath = path.join(AVATARS_DIR, `${id}_source.png`);
+    if (!fs.existsSync(sourcePath)) {
+      return res.status(400).json({ error: 'No source image found. Upload a photo first.' });
+    }
+
+    const resizedBuffer = await sharp(sourcePath)
+      .resize(512, 512, { fit: 'cover' })
+      .png()
+      .toBuffer();
+
+    const boundary = '----FormBoundary' + uuidv4().replace(/-/g, '');
+    const parts = [
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="input.png"\r\nContent-Type: image/png\r\n\r\n`
+      ),
+      resizedBuffer,
+      Buffer.from(`\r\n--${boundary}--\r\n`)
+    ];
+    const uploadBody = Buffer.concat(parts);
+
+    const uploadResp = await fetch(`${COMFYUI_URL}/upload/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body: uploadBody
+    });
+
+    if (!uploadResp.ok) {
+      return res.status(502).json({ error: 'Failed to upload to Stable Diffusion' });
+    }
+
+    const uploadResult = await uploadResp.json();
+    const inputImageName = uploadResult.name;
+
+    const { style } = req.body || {};
+    const workflow = buildCartoonWorkflow(inputImageName, style, 'white');
+    const promptResp = await fetch(`${COMFYUI_URL}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow })
+    });
+
+    if (!promptResp.ok) {
+      return res.status(502).json({ error: 'Failed to start image generation' });
+    }
+
+    const promptResult = await promptResp.json();
+    const promptId = promptResult.prompt_id;
+
+    let outputFilename = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const histResp = await fetch(`${COMFYUI_URL}/history/${promptId}`);
+        const history = await histResp.json();
+        const entry = history[promptId];
+        if (entry && entry.outputs && entry.outputs['10'] && entry.outputs['10'].images && entry.outputs['10'].images[0]) {
+          outputFilename = entry.outputs['10'].images[0].filename;
+          break;
+        }
+        if (entry && entry.status && entry.status.status_str === 'error') {
+          return res.status(502).json({ error: 'Image generation failed' });
+        }
+      } catch (e) {}
+    }
+
+    if (!outputFilename) {
+      return res.status(504).json({ error: 'Image generation timed out (60s)' });
+    }
+
+    const imgResp = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(outputFilename)}&type=output`);
+    if (!imgResp.ok) {
+      return res.status(502).json({ error: 'Failed to download generated image' });
+    }
+    const imgArrayBuffer = await imgResp.arrayBuffer();
+    const imgBuffer = Buffer.from(imgArrayBuffer);
+
+    const filepath = path.join(AVATARS_DIR, `${id}.png`);
+    await sharp(imgBuffer)
+      .resize(256, 256, { fit: 'cover' })
+      .png()
+      .toFile(filepath);
+
+    kid.avatar_photo = `/avatars/${id}.png?t=${Date.now()}`;
+    saveData();
+    res.json({ success: true, avatar_url: kid.avatar_photo });
+  } catch (err) {
+    console.error('Regenerate error:', err);
+    res.status(500).json({ error: 'Failed to regenerate avatar' });
   }
 });
 

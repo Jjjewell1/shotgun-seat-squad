@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 const API = '/api'
 
@@ -13,15 +13,78 @@ const STYLES = [
 ]
 
 const BACKGROUNDS = [
-  { id: 'white', icon: '⬜', name: 'Clean' },
-  { id: 'rainbow', icon: '🌈', name: 'Rainbow' },
-  { id: 'space', icon: '🚀', name: 'Space' },
-  { id: 'beach', icon: '🏖️', name: 'Beach' },
-  { id: 'nature', icon: '🌲', name: 'Nature' },
-  { id: 'city', icon: '🏙️', name: 'City' },
-  { id: 'lightning', icon: '⚡', name: 'Lightning' },
-  { id: 'gaming', icon: '🎮', name: 'Gaming' }
+  { id: 'white', icon: '⬜', name: 'Clean', gradient: ['#ffffff', '#ffffff'] },
+  { id: 'rainbow', icon: '🌈', name: 'Rainbow', gradient: ['#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3'] },
+  { id: 'space', icon: '🚀', name: 'Space', gradient: ['#0c0032', '#190061', '#240090'] },
+  { id: 'beach', icon: '🏖️', name: 'Beach', gradient: ['#f7ce68', '#fbab7e', '#f7797d'] },
+  { id: 'nature', icon: '🌲', name: 'Nature', gradient: ['#11998e', '#38ef7d'] },
+  { id: 'city', icon: '🏙️', name: 'City', gradient: ['#373b44', '#4286f4'] },
+  { id: 'lightning', icon: '⚡', name: 'Lightning', gradient: ['#0f0c29', '#302b63', '#24243e'] },
+  { id: 'gaming', icon: '🎮', name: 'Gaming', gradient: ['#0f2027', '#203a43', '#2c5364'] }
 ]
+
+function drawBackground(ctx, w, h, bgId) {
+  const bg = BACKGROUNDS.find(b => b.id === bgId) || BACKGROUNDS[0]
+  const colors = bg.gradient
+
+  if (bgId === 'white' || colors.length < 2) {
+    ctx.fillStyle = colors[0]
+    ctx.fillRect(0, 0, w, h)
+    return
+  }
+
+  if (bgId === 'rainbow') {
+    const grad = ctx.createLinearGradient(0, 0, w, h)
+    colors.forEach((c, i) => grad.addColorStop(i / (colors.length - 1), c))
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, w, h)
+    return
+  }
+
+  const grad = ctx.createLinearGradient(0, 0, 0, h)
+  colors.forEach((c, i) => grad.addColorStop(i / (colors.length - 1), c))
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, w, h)
+}
+
+function compositeWithBackground(sdImage, bgId) {
+  return new Promise((resolve) => {
+    const size = 512
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+
+    drawBackground(ctx, size, size, bgId)
+
+    const img = new Image()
+    img.onload = () => {
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = size
+      tempCanvas.height = size
+      const tempCtx = tempCanvas.getContext('2d')
+      tempCtx.drawImage(img, 0, 0, size, size)
+
+      const imgData = tempCtx.getImageData(0, 0, size, size)
+      const d = imgData.data
+      for (let i = 0; i < d.length; i += 4) {
+        const brightness = (d[i] + d[i + 1] + d[i + 2]) / 3
+        if (brightness > 220) {
+          d[i + 3] = 0
+        } else if (brightness > 180) {
+          const t = (brightness - 180) / 40
+          d[i + 3] = Math.round(255 * (1 - t))
+        }
+      }
+      tempCtx.putImageData(imgData, 0, 0)
+
+      ctx.drawImage(tempCanvas, 0, 0)
+      canvas.toBlob((blob) => resolve(URL.createObjectURL(blob)), 'image/png')
+    }
+    img.onerror = () => resolve(null)
+    img.src = sdImage
+  })
+}
 
 // === Canvas-based cartoon filter (fallback when ComfyUI unavailable) ===
 
@@ -136,6 +199,7 @@ function getAuthHeaders(kid, adminToken) {
 export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   const [original, setOriginal] = useState(null)
   const [originalFile, setOriginalFile] = useState(null)
+  const [rawCartoonized, setRawCartoonized] = useState(null)
   const [cartoonized, setCartoonized] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -143,6 +207,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   const [message, setMessage] = useState('')
   const [selectedStyle, setSelectedStyle] = useState('cartoon')
   const [selectedBg, setSelectedBg] = useState('white')
+  const [hasSource, setHasSource] = useState(false)
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -157,15 +222,40 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
     return () => {
       if (original) URL.revokeObjectURL(original)
       if (cartoonized) URL.revokeObjectURL(cartoonized)
+      if (rawCartoonized) URL.revokeObjectURL(rawCartoonized)
     }
-  }, [original, cartoonized])
+  }, [original, cartoonized, rawCartoonized])
+
+  const applyBgComposite = useCallback(async (rawUrl, bgId) => {
+    if (bgId === 'white') {
+      if (cartoonized) URL.revokeObjectURL(cartoonized)
+      setCartoonized(rawUrl)
+      return
+    }
+    const composited = await compositeWithBackground(rawUrl, bgId)
+    if (composited) {
+      if (cartoonized) URL.revokeObjectURL(cartoonized)
+      setCartoonized(composited)
+    } else {
+      setCartoonized(rawUrl)
+    }
+  }, [cartoonized])
+
+  useEffect(() => {
+    if (rawCartoonized) {
+      applyBgComposite(rawCartoonized, selectedBg)
+    }
+  }, [selectedBg, rawCartoonized, applyBgComposite])
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
     if (!file || !file.type.startsWith('image/')) return
     if (original) URL.revokeObjectURL(original)
     if (cartoonized) URL.revokeObjectURL(cartoonized)
+    if (rawCartoonized) URL.revokeObjectURL(rawCartoonized)
     setCartoonized(null)
+    setRawCartoonized(null)
+    setHasSource(false)
     setMessage('')
     const url = URL.createObjectURL(file)
     setOriginal(url)
@@ -173,25 +263,46 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   }
 
   const processWithAI = async () => {
-    if (!originalFile || !kid?._token) return
+    if (!kid?._token) return
     setProcessing(true)
     const styleName = STYLES.find(s => s.id === selectedStyle)?.name || 'Cartoon'
-    const bgName = BACKGROUNDS.find(b => b.id === selectedBg)?.name || 'Clean'
-    setMessage(`Generating ${styleName} avatar with ${bgName} background...`)
+    setMessage(`Generating ${styleName} avatar...`)
     try {
-      const formData = new FormData()
-      formData.append('avatar', originalFile)
-      formData.append('style', selectedStyle)
-      formData.append('background', selectedBg)
-      const res = await fetch(`${API}/kids/${kid.id}/avatar/cartoonize`, {
-        method: 'POST',
-        headers: getAuthHeaders(kid, adminToken),
-        body: formData
-      })
-      const data = await res.json()
+      let data
+      if (hasSource && originalFile) {
+        const formData = new FormData()
+        formData.append('avatar', originalFile)
+        formData.append('style', selectedStyle)
+        const res = await fetch(`${API}/kids/${kid.id}/avatar/cartoonize`, {
+          method: 'POST',
+          headers: getAuthHeaders(kid, adminToken),
+          body: formData
+        })
+        data = await res.json()
+      } else if (hasSource) {
+        const res = await fetch(`${API}/kids/${kid.id}/avatar/regenerate`, {
+          method: 'POST',
+          headers: { ...getAuthHeaders(kid, adminToken), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ style: selectedStyle })
+        })
+        data = await res.json()
+      } else {
+        const formData = new FormData()
+        formData.append('avatar', originalFile)
+        formData.append('style', selectedStyle)
+        const res = await fetch(`${API}/kids/${kid.id}/avatar/cartoonize`, {
+          method: 'POST',
+          headers: getAuthHeaders(kid, adminToken),
+          body: formData
+        })
+        data = await res.json()
+      }
+
       if (data.success) {
-        setCartoonized(data.avatar_url + '&t=' + Date.now())
-        setMessage('AI avatar ready!')
+        const rawUrl = data.avatar_url + '&t=' + Date.now()
+        setRawCartoonized(rawUrl)
+        setHasSource(true)
+        setMessage('Avatar ready! Pick a background or save it.')
       } else {
         setMessage(data.error || 'AI generation failed')
       }
@@ -273,7 +384,8 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       })
       if (original) URL.revokeObjectURL(original)
       if (cartoonized) URL.revokeObjectURL(cartoonized)
-      setOriginal(null); setOriginalFile(null); setCartoonized(null)
+      if (rawCartoonized) URL.revokeObjectURL(rawCartoonized)
+      setOriginal(null); setOriginalFile(null); setCartoonized(null); setRawCartoonized(null); setHasSource(false)
       setMessage('Avatar removed')
       if (onAvatarSaved) onAvatarSaved(null)
     } catch (err) { setMessage('Failed to remove avatar') }
@@ -282,7 +394,8 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   const handleReset = () => {
     if (original) URL.revokeObjectURL(original)
     if (cartoonized) URL.revokeObjectURL(cartoonized)
-    setOriginal(null); setOriginalFile(null); setCartoonized(null); setMessage('')
+    if (rawCartoonized) URL.revokeObjectURL(rawCartoonized)
+    setOriginal(null); setOriginalFile(null); setCartoonized(null); setRawCartoonized(null); setHasSource(false); setMessage('')
   }
 
   const isAI = mode === 'ai'
@@ -335,7 +448,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
         )}
       </div>
 
-      {original && isAI && !cartoonized && !processing && (
+      {original && isAI && !processing && (
         <div className="cartoon-options">
           <div className="cartoon-option-group">
             <label className="cartoon-option-label">Style</label>
@@ -350,19 +463,21 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
               ))}
             </div>
           </div>
-          <div className="cartoon-option-group">
-            <label className="cartoon-option-label">Background</label>
-            <div className="cartoon-option-scroll">
-              {BACKGROUNDS.map(b => (
-                <button key={b.id}
-                  className={`cartoon-option-card ${selectedBg === b.id ? 'active' : ''}`}
-                  onClick={() => setSelectedBg(b.id)}>
-                  <span className="cartoon-option-icon">{b.icon}</span>
-                  <span className="cartoon-option-name">{b.name}</span>
-                </button>
-              ))}
+          {hasSource && (
+            <div className="cartoon-option-group">
+              <label className="cartoon-option-label">Background</label>
+              <div className="cartoon-option-scroll">
+                {BACKGROUNDS.map(b => (
+                  <button key={b.id}
+                    className={`cartoon-option-card ${selectedBg === b.id ? 'active' : ''}`}
+                    onClick={() => setSelectedBg(b.id)}>
+                    <span className="cartoon-option-icon">{b.icon}</span>
+                    <span className="cartoon-option-name">{b.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -383,6 +498,11 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
           <button className="btn btn-primary" onClick={isAI ? handleSaveAI : handleSaveCanvas} disabled={saving}>
             {saving ? 'Saving...' : '💾 Save Avatar'}
           </button>
+          {isAI && (
+            <button className="btn btn-accent" onClick={processWithAI} disabled={processing}>
+              {processing ? 'Generating...' : '🔄 Regenerate'}
+            </button>
+          )}
           <button className="btn btn-secondary" onClick={handleReset}>Try Another</button>
         </div>
       )}

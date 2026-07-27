@@ -1136,15 +1136,14 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
 
     // Upload to ComfyUI
     const boundary = '----FormBoundary' + uuidv4().replace(/-/g, '');
-    const fileBase64 = resizedBuffer.toString('base64');
-    const uploadBody = [
-      `--${boundary}`,
-      'Content-Disposition: form-data; name="image"; filename="input.png"',
-      'Content-Type: image/png',
-      '',
-      fileBase64,
-      `--${boundary}--`
-    ].join('\r\n');
+    const parts = [
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="input.png"\r\nContent-Type: image/png\r\n\r\n`
+      ),
+      resizedBuffer,
+      Buffer.from(`\r\n--${boundary}--\r\n`)
+    ];
+    const uploadBody = Buffer.concat(parts);
 
     const uploadResp = await fetch(`${COMFYUI_URL}/upload/image`, {
       method: 'POST',

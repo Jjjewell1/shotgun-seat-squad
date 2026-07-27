@@ -1004,6 +1004,39 @@ app.delete('/api/branding/logo', requireAdmin, (req, res) => {
 // Serve branding assets
 app.use('/branding', express.static(BRANDING_DIR));
 
+// === OLLAMA PROXY ===
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+
+app.post('/api/ollama/chat', requireKidOrAdmin, async (req, res) => {
+  try {
+    const { model, messages, stream } = req.body
+    const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model || 'hermes3:8b',
+        messages: messages || [],
+        stream: false
+      })
+    })
+    const data = await response.json()
+    res.json({ success: true, message: data.message?.content || '' })
+  } catch (err) {
+    console.error('Ollama proxy error:', err.message)
+    res.status(500).json({ error: 'AI not available', detail: err.message })
+  }
+})
+
+app.get('/api/ollama/models', requireKidOrAdmin, async (req, res) => {
+  try {
+    const response = await fetch(`${OLLAMA_URL}/api/tags`)
+    const data = await response.json()
+    res.json({ success: true, models: data.models || [] })
+  } catch (err) {
+    res.json({ success: true, models: [] })
+  }
+})
+
 // Serve static client build in production
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 if (fs.existsSync(clientBuildPath)) {

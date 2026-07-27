@@ -10,6 +10,8 @@ import TrafficDodge from './games/TrafficDodge'
 import MemoryMatch from './games/MemoryMatch'
 import LicensePlate from './games/LicensePlate'
 import PitStop from './games/PitStop'
+import RoadTripStory from './RoadTripStory'
+import TriviaChallenge from './TriviaChallenge'
 
 const API = '/api'
 
@@ -19,7 +21,9 @@ const GAMES = [
   { id: 'traffic_dodge', name: 'Traffic Dodge', icon: '🚧', component: TrafficDodge },
   { id: 'memory', name: 'Memory Match', icon: '🃏', component: MemoryMatch },
   { id: 'license', name: 'License Plate', icon: '🔢', component: LicensePlate },
-  { id: 'pitstop', name: 'Pit Stop', icon: '⛽', component: PitStop }
+  { id: 'pitstop', name: 'Pit Stop', icon: '⛽', component: PitStop },
+  { id: 'story', name: 'Road Trip Story', icon: '📖', component: RoadTripStory, ai: true },
+  { id: 'trivia', name: 'Trivia Challenge', icon: '🧠', component: TriviaChallenge, ai: true }
 ]
 
 export default function KidDashboard({ kid, onLogout }) {
@@ -263,12 +267,13 @@ export default function KidDashboard({ kid, onLogout }) {
             {GAMES.map(game => (
               <button
                 key={game.id}
-                className="kid-game-card"
+                className={`kid-game-card ${game.ai ? 'kid-game-ai' : ''}`}
                 onClick={() => setActiveGame(game.id)}
               >
                 <span className="kid-game-icon">{game.icon}</span>
                 <span className="kid-game-name">{game.name}</span>
-                {dashboard.game_highscores?.[game.id] != null && (
+                {game.ai && <span className="kid-game-ai-badge">AI</span>}
+                {!game.ai && dashboard.game_highscores?.[game.id] != null && (
                   <span className="kid-game-highscore">Best: {dashboard.game_highscores[game.id]}</span>
                 )}
               </button>

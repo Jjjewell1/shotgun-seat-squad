@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { removeBackground } from '@imgly/background-removal'
 
 const API = '/api'
@@ -25,7 +25,7 @@ export default function BrandingTab({ adminToken }) {
     }
   }, [])
 
-  useState(() => { loadBranding() }, [loadBranding])
+  useEffect(() => { loadBranding() }, [loadBranding])
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0]

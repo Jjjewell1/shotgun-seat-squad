@@ -451,6 +451,48 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 /* === LOADING === */
 .loading { text-align: center; padding: 60px; color: var(--text-secondary); font-size: 1.2rem; }
 
+/* === BRANDING === */
+.branding-section { padding: 20px 0; }
+.branding-description { color: var(--text-secondary); margin-bottom: 24px; line-height: 1.5; }
+.branding-current { background: var(--bg-card); border-radius: 12px; padding: 20px; margin-bottom: 24px; text-align: center; }
+.branding-current-label { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; }
+.branding-current-preview { margin-bottom: 12px; }
+.branding-dropzone {
+  border: 2px dashed var(--bg-card-hover);
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 20px;
+  background: var(--bg-card);
+}
+.branding-dropzone:hover { border-color: var(--accent); background: rgba(245, 158, 11, 0.05); }
+.branding-dropzone-icon { font-size: 3rem; margin-bottom: 12px; }
+.branding-dropzone-text { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+.branding-dropzone-hint { font-size: 0.85rem; color: var(--text-secondary); }
+.branding-dropzone-img { max-width: 200px; max-height: 200px; border-radius: 8px; }
+.branding-actions { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+.branding-result { background: var(--bg-card); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.branding-result-label { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; }
+.branding-preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.branding-preview-card { text-align: center; }
+.branding-preview-img { max-width: 100%; max-height: 150px; border-radius: 8px; background: repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%) 50% / 20px 20px; }
+.branding-preview-label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px; }
+.branding-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+.branding-message.success { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid var(--success); }
+.branding-message.error { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid var(--danger); }
+.branding-info { background: var(--bg-card); border-radius: 12px; padding: 20px; }
+.branding-info h4 { font-size: 0.95rem; margin-bottom: 12px; }
+.branding-info ul { list-style: none; padding: 0; }
+.branding-info li { padding: 6px 0; color: var(--text-secondary); font-size: 0.9rem; }
+.branding-info li::before { content: '•'; color: var(--accent); margin-right: 8px; }
+
 /* === RESPONSIVE === */
 @media (max-width: 600px) {
   .kids-grid, .kid-games-grid, .kid-stats-panel { grid-template-columns: 1fr; }

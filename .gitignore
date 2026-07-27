@@ -3,5 +3,7 @@ client/node_modules
 server/node_modules
 client/dist
 server/shotgun-data.json
+server/branding/*.png
+server/branding/*.svg
 .DS_Store
 *.log

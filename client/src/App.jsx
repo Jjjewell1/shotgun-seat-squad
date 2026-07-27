@@ -8,6 +8,7 @@ import ShufflePicker from './ShufflePicker'
 import useConfetti from './useConfetti'
 import Podium from './Podium'
 import BadgeDisplay from './BadgeDisplay'
+import BrandingTab from './BrandingTab'
 
 const API = '/api'
 
@@ -252,6 +253,7 @@ function ParentDashboard({ onLogout, adminToken }) {
         <button className={`tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>Stats</button>
         <button className={`tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>History</button>
         <button className={`tab ${activeTab === 'picks' ? 'active' : ''}`} onClick={() => setActiveTab('picks')}>Pick Log</button>
+        <button className={`tab ${activeTab === 'branding' ? 'active' : ''}`} onClick={() => setActiveTab('branding')}>Branding</button>
         <button className={`tab ${activeTab === 'manage' ? 'active' : ''}`} onClick={() => setActiveTab('manage')}>Manage</button>
       </div>
 
@@ -468,6 +470,10 @@ function ParentDashboard({ onLogout, adminToken }) {
             <div className="empty-state"><p>No picks yet</p></div>
           )}
         </div>
+      )}
+
+      {activeTab === 'branding' && (
+        <BrandingTab adminToken={adminToken} />
       )}
 
       {activeTab === 'manage' && (

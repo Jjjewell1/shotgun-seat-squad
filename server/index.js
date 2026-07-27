@@ -3,6 +3,8 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const multer = require('multer');
+const sharp = require('sharp');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -101,8 +103,22 @@ let data = {
   history: [],
   current: null,
   pending_request: null,
-  shotgun_picks: []
+  shotgun_picks: [],
+  branding: null
 };
+
+const BRANDING_DIR = path.join(__dirname, 'branding');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files allowed'), false);
+    }
+  }
+});
 
 function loadData() {
   try {
@@ -761,6 +777,108 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
 app.get('/api/emoji-options', (req, res) => {
   res.json(EMOJI_OPTIONS);
 });
+
+// === BRANDING ENDPOINTS ===
+
+app.get('/api/branding', (req, res) => {
+  res.json(data.branding || { hasLogo: false });
+});
+
+app.post('/api/branding/logo', requireAdmin, upload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const inputBuffer = req.file.buffer;
+
+    // Generate all required sizes
+    const sizes = {
+      'favicon-16.png': { width: 16, height: 16 },
+      'favicon-32.png': { width: 32, height: 32 },
+      'icon-192.png': { width: 192, height: 192 },
+      'icon-512.png': { width: 512, height: 512 },
+      'logo.png': { width: 400, height: 400 }
+    };
+
+    const generatedFiles = {};
+
+    for (const [filename, dims] of Object.entries(sizes)) {
+      const filepath = path.join(BRANDING_DIR, filename);
+      await sharp(inputBuffer)
+        .resize(dims.width, dims.height, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        })
+        .png()
+        .toFile(filepath);
+      generatedFiles[filename] = `/branding/${filename}?t=${Date.now()}`;
+    }
+
+    // Generate SVG favicon
+    const svgFavicon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+      <image href="/branding/icon-512.png" width="512" height="512"/>
+    </svg>`;
+    fs.writeFileSync(path.join(BRANDING_DIR, 'favicon.svg'), svgFavicon);
+    generatedFiles['favicon.svg'] = `/branding/favicon.svg?t=${Date.now()}`;
+
+    // Update manifest icon references
+    const manifestPath = path.join(__dirname, '..', 'client', 'dist', 'manifest.webmanifest');
+    if (fs.existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        if (manifest.icons) {
+          manifest.icons.forEach(icon => {
+            if (icon.src.includes('favicon.svg')) {
+              icon.src = generatedFiles['favicon.svg'];
+            }
+          });
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+      } catch (e) {
+        console.error('Failed to update manifest:', e);
+      }
+    }
+
+    data.branding = {
+      hasLogo: true,
+      uploadedAt: new Date().toISOString(),
+      files: generatedFiles
+    };
+    saveData();
+
+    res.json({
+      success: true,
+      branding: data.branding
+    });
+  } catch (err) {
+    console.error('Branding upload error:', err);
+    res.status(500).json({ error: 'Failed to process image' });
+  }
+});
+
+app.delete('/api/branding/logo', requireAdmin, (req, res) => {
+  try {
+    const files = ['favicon-16.png', 'favicon-32.png', 'icon-192.png', 'icon-512.png', 'logo.png', 'favicon.svg'];
+    files.forEach(file => {
+      const filepath = path.join(BRANDING_DIR, file);
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+    });
+
+    data.branding = null;
+    saveData();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Branding delete error:', err);
+    res.status(500).json({ error: 'Failed to remove branding' });
+  }
+});
+
+// Serve branding assets
+app.use('/branding', express.static(BRANDING_DIR));
 
 // Serve static client build in production
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');

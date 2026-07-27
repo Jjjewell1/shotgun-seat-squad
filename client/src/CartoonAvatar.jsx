@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 const API = '/api'
 
@@ -7,58 +7,77 @@ function applyCartoonFilter(canvas, ctx, img) {
   const h = canvas.height
 
   ctx.drawImage(img, 0, 0, w, h)
+
   const imageData = ctx.getImageData(0, 0, w, h)
-  const data = imageData.data
+  const src = new Uint8ClampedArray(imageData.data)
 
-  const levels = 8
-  const step = 255 / levels
-
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = Math.round(data[i] / step) * step
-    data[i + 1] = Math.round(data[i + 1] / step) * step
-    data[i + 2] = Math.round(data[i + 2] / step) * step
-
-    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3
-    const boost = 1.2
-    data[i] = Math.min(255, data[i] * (avg > 128 ? boost : 1 / boost))
-    data[i + 1] = Math.min(255, data[i + 1] * (avg > 128 ? boost : 1 / boost))
-    data[i + 2] = Math.min(255, data[i + 2] * (avg > 128 ? boost : 1 / boost))
+  const blurred = new Uint8ClampedArray(src.length)
+  const radius = 2
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0, count = 0
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const nx = x + dx, ny = y + dy
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+            const idx = (ny * w + nx) * 4
+            r += src[idx]; g += src[idx + 1]; b += src[idx + 2]
+            count++
+          }
+        }
+      }
+      const idx = (y * w + x) * 4
+      blurred[idx] = r / count
+      blurred[idx + 1] = g / count
+      blurred[idx + 2] = b / count
+      blurred[idx + 3] = 255
+    }
   }
 
-  ctx.putImageData(imageData, 0, 0)
+  const levels = 12
+  const step = 256 / levels
+  for (let i = 0; i < blurred.length; i += 4) {
+    blurred[i] = Math.round(blurred[i] / step) * step + step / 2
+    blurred[i + 1] = Math.round(blurred[i + 1] / step) * step + step / 2
+    blurred[i + 2] = Math.round(blurred[i + 2] / step) * step + step / 2
+    blurred[i] = Math.min(255, blurred[i])
+    blurred[i + 1] = Math.min(255, blurred[i + 1])
+    blurred[i + 2] = Math.min(255, blurred[i + 2])
+  }
 
-  const edgeData = ctx.getImageData(0, 0, w, h)
-  const edges = new Uint8ClampedArray(edgeData.data.length)
-
+  const edges = new Uint8ClampedArray(src.length)
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const idx = (y * w + x) * 4
-
-      const l = edgeData.data[idx - 4]
-      const r = edgeData.data[idx + 4]
-      const t = edgeData.data[idx - w * 4]
-      const b = edgeData.data[idx + w * 4]
-
-      const gx = Math.abs(r - l)
-      const gy = Math.abs(b - t)
+      const l = blurred[idx - 4], r2 = blurred[idx + 4]
+      const t = blurred[idx - w * 4], b2 = blurred[idx + w * 4]
+      const gx = Math.abs(r2 - l)
+      const gy = Math.abs(b2 - t)
       const edge = Math.min(255, gx + gy)
 
-      if (edge > 40) {
-        edges[idx] = 0
-        edges[idx + 1] = 0
-        edges[idx + 2] = 0
-        edges[idx + 3] = Math.min(255, edge * 2)
+      if (edge > 30) {
+        const darken = Math.max(0, 0.4)
+        edges[idx] = blurred[idx] * darken
+        edges[idx + 1] = blurred[idx + 1] * darken
+        edges[idx + 2] = blurred[idx + 2] * darken
+        edges[idx + 3] = 255
       } else {
-        edges[idx] = data[idx]
-        edges[idx + 1] = data[idx + 1]
-        edges[idx + 2] = data[idx + 2]
+        const s = 1.15
+        edges[idx] = Math.min(255, blurred[idx] * s)
+        edges[idx + 1] = Math.min(255, blurred[idx + 1] * s)
+        edges[idx + 2] = Math.min(255, blurred[idx + 2] * s)
         edges[idx + 3] = 255
       }
     }
   }
 
-  const edgeImageData = new ImageData(edges, w, h)
-  ctx.putImageData(edgeImageData, 0, 0)
+  const out = new ImageData(edges, w, h)
+  ctx.putImageData(out, 0, 0)
+}
+
+function getAuthHeaders(kid, adminToken) {
+  const token = kid?._token || kid?._adminToken || adminToken
+  return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
 
 export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
@@ -69,8 +88,6 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
   const [message, setMessage] = useState('')
   const canvasRef = useRef(null)
   const fileInputRef = useRef(null)
-
-  const authHeaders = { 'Authorization': `Bearer ${adminToken || ''}` }
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
@@ -104,6 +121,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       const sy = (img.height - minDim) / 2
 
       ctx.clearRect(0, 0, size, size)
+      ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size)
       applyCartoonFilter(canvas, ctx, img)
 
       const url = canvas.toDataURL('image/png')
@@ -130,13 +148,9 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       const formData = new FormData()
       formData.append('avatar', file)
 
-      const headers = kid._adminToken
-        ? { 'Authorization': `Bearer ${kid._adminToken}` }
-        : { 'Authorization': `Bearer ${adminToken}` }
-
       const res = await fetch(`${API}/kids/${kid.id}/avatar`, {
         method: 'POST',
-        headers,
+        headers: getAuthHeaders(kid, adminToken),
         body: formData
       })
 
@@ -156,13 +170,9 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
 
   const handleRemove = async () => {
     try {
-      const headers = kid._adminToken
-        ? { 'Authorization': `Bearer ${kid._adminToken}` }
-        : { 'Authorization': `Bearer ${adminToken}` }
-
       await fetch(`${API}/kids/${kid.id}/avatar`, {
         method: 'DELETE',
-        headers
+        headers: getAuthHeaders(kid, adminToken)
       })
       setOriginal(null)
       setCartoonized(null)

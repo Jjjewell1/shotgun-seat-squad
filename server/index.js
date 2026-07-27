@@ -16,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 const adminSessions = new Set();
+const kidSessions = new Map();
 
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -23,6 +24,22 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Admin access required' });
   }
   next();
+}
+
+function requireKidOrAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Auth required' });
+  if (adminSessions.has(token)) {
+    req.authType = 'admin';
+    return next();
+  }
+  const kidId = kidSessions.get(token);
+  if (kidId) {
+    req.authType = 'kid';
+    req.kidId = kidId;
+    return next();
+  }
+  res.status(401).json({ error: 'Invalid session' });
 }
 
 // === PUSHOVER ===
@@ -273,7 +290,9 @@ app.post('/api/auth/kid', (req, res) => {
   }
   if (kid.passphrase.toLowerCase() === passphrase.toLowerCase()) {
     if (!kid.avatar) kid.avatar = '🚗';
-    res.json({ success: true, kid: { id: kid.id, name: kid.name, avatar: kid.avatar, color: kid.color } });
+    const token = uuidv4();
+    kidSessions.set(token, kid.id);
+    res.json({ success: true, token, kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color } });
   } else {
     res.status(401).json({ success: false, error: 'Wrong passphrase' });
   }
@@ -381,9 +400,12 @@ app.delete('/api/kids/:id', requireAdmin, (req, res) => {
 
 const avatarsDir = path.join(__dirname, 'avatars');
 
-app.post('/api/kids/:id/avatar', requireAdmin, upload.single('avatar'), async (req, res) => {
+app.post('/api/kids/:id/avatar', requireKidOrAdmin, upload.single('avatar'), async (req, res) => {
   try {
     const { id } = req.params;
+    if (req.authType === 'kid' && req.kidId !== id) {
+      return res.status(403).json({ error: 'Can only update your own avatar' });
+    }
     const kid = data.kids.find(k => k.id === id);
     if (!kid) return res.status(404).json({ error: 'Kid not found' });
     if (!req.file) return res.status(400).json({ error: 'No image provided' });
@@ -403,8 +425,11 @@ app.post('/api/kids/:id/avatar', requireAdmin, upload.single('avatar'), async (r
   }
 });
 
-app.delete('/api/kids/:id/avatar', requireAdmin, (req, res) => {
+app.delete('/api/kids/:id/avatar', requireKidOrAdmin, (req, res) => {
   const { id } = req.params;
+  if (req.authType === 'kid' && req.kidId !== id) {
+    return res.status(403).json({ error: 'Can only update your own avatar' });
+  }
   const kid = data.kids.find(k => k.id === id);
   if (!kid) return res.status(404).json({ error: 'Kid not found' });
 

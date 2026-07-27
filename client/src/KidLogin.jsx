@@ -19,7 +19,7 @@ export default function KidLogin({ kid, onLogin, onBack }) {
       })
       const data = await res.json()
       if (data.success) {
-        onLogin(data.kid)
+        onLogin({ ...data.kid, _token: data.token })
       } else {
         setError(true)
         setPassphrase('')

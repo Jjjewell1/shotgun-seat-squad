@@ -3,7 +3,7 @@ import BadgeDisplay from './BadgeDisplay'
 import Podium from './Podium'
 import ShufflePicker from './ShufflePicker'
 import useConfetti from './useConfetti'
-import CartoonAvatar from './CartoonAvatar'
+import KidProfileEditor from './KidProfileEditor'
 import TicTacToe from './games/TicTacToe'
 import DragRace from './games/DragRace'
 import TrafficDodge from './games/TrafficDodge'
@@ -28,7 +28,7 @@ export default function KidDashboard({ kid, onLogout }) {
   const [activeGame, setActiveGame] = useState(null)
   const [elapsed, setElapsed] = useState('00:00:00')
   const [showPicker, setShowPicker] = useState(false)
-  const [showAvatarUpload, setShowAvatarUpload] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
   const [fairPool, setFairPool] = useState([])
   const [kidData, setKidData] = useState(kid)
   const fireConfetti = useConfetti()
@@ -107,6 +107,20 @@ export default function KidDashboard({ kid, onLogout }) {
 
   if (!dashboard) return <div className="loading">Loading...</div>
 
+  if (showProfile) {
+    return (
+      <div className="kid-dashboard">
+        <KidProfileEditor
+          kid={kidData}
+          onSaved={(updatedKid) => {
+            setKidData(prev => ({ ...prev, ...updatedKid }))
+          }}
+          onBack={() => setShowProfile(false)}
+        />
+      </div>
+    )
+  }
+
   if (activeGame) {
     const gameDef = GAMES.find(g => g.id === activeGame)
     const GameComponent = gameDef.component
@@ -133,7 +147,7 @@ export default function KidDashboard({ kid, onLogout }) {
 
       <header className="kid-header">
         <div className="kid-header-info">
-          <span className="kid-header-avatar" onClick={() => setShowAvatarUpload(true)} style={{ cursor: 'pointer' }} title="Tap to change photo">
+          <span className="kid-header-avatar" onClick={() => setShowProfile(true)} style={{ cursor: 'pointer' }} title="Tap to edit profile">
             {kidData.avatar_photo ? (
               <img src={kidData.avatar_photo} alt={kidData.name} className="kid-header-avatar-img" />
             ) : (
@@ -145,26 +159,11 @@ export default function KidDashboard({ kid, onLogout }) {
             <p className="kid-header-rank">Rank: #{dashboard.rank} of {dashboard.leaderboard.length}</p>
           </div>
         </div>
-        <button className="btn btn-secondary btn-sm" onClick={onLogout}>Log Out</button>
-      </header>
-
-      {showAvatarUpload && (
-        <div className="modal-overlay" onClick={() => setShowAvatarUpload(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>📸 Your Avatar</h3>
-            <CartoonAvatar
-              kid={kidData}
-              onAvatarSaved={(url) => {
-                setKidData(prev => ({ ...prev, avatar_photo: url }))
-                setShowAvatarUpload(false)
-              }}
-            />
-            <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-secondary" onClick={() => setShowAvatarUpload(false)}>Done</button>
-            </div>
-          </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => setShowProfile(true)}>✏️ Edit</button>
+          <button className="btn btn-secondary btn-sm" onClick={onLogout}>Log Out</button>
         </div>
-      )}
+      </header>
 
       {dashboard.current && (
         <div className="kid-current-section">

@@ -11,6 +11,12 @@ const PORT = process.env.PORT || 3001;
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DATA_FILE = path.join(DATA_DIR, 'shotgun-data.json');
 const APP_URL = process.env.APP_URL || '';
+const BRANDING_DIR = path.join(__dirname, 'branding');
+const AVATARS_DIR = path.join(__dirname, 'avatars');
+
+[BRANDING_DIR, AVATARS_DIR].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
 
 app.use(cors());
 app.use(express.json());
@@ -124,7 +130,6 @@ let data = {
   branding: null
 };
 
-const BRANDING_DIR = path.join(__dirname, 'branding');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -398,8 +403,6 @@ app.delete('/api/kids/:id', requireAdmin, (req, res) => {
 
 // === KID AVATAR UPLOAD ===
 
-const avatarsDir = path.join(__dirname, 'avatars');
-
 app.post('/api/kids/:id/avatar', requireKidOrAdmin, upload.single('avatar'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -410,7 +413,7 @@ app.post('/api/kids/:id/avatar', requireKidOrAdmin, upload.single('avatar'), asy
     if (!kid) return res.status(404).json({ error: 'Kid not found' });
     if (!req.file) return res.status(400).json({ error: 'No image provided' });
 
-    const filepath = path.join(avatarsDir, `${id}.png`);
+    const filepath = path.join(AVATARS_DIR, `${id}.png`);
     await sharp(req.file.buffer)
       .resize(256, 256, { fit: 'cover' })
       .png()
@@ -433,7 +436,7 @@ app.delete('/api/kids/:id/avatar', requireKidOrAdmin, (req, res) => {
   const kid = data.kids.find(k => k.id === id);
   if (!kid) return res.status(404).json({ error: 'Kid not found' });
 
-  const filepath = path.join(avatarsDir, `${id}.png`);
+  const filepath = path.join(AVATARS_DIR, `${id}.png`);
   if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
   kid.avatar_photo = null;
   saveData();
@@ -441,7 +444,34 @@ app.delete('/api/kids/:id/avatar', requireKidOrAdmin, (req, res) => {
 });
 
 // Serve kid avatars
-app.use('/avatars', express.static(avatarsDir));
+app.use('/avatars', express.static(AVATARS_DIR));
+
+// === KID PROFILE EDIT (kid-auth) ===
+
+app.patch('/api/kids/:id/profile', requireKidOrAdmin, (req, res) => {
+  const { id } = req.params;
+  if (req.authType === 'kid' && req.kidId !== id) {
+    return res.status(403).json({ error: 'Can only edit your own profile' });
+  }
+
+  const kid = data.kids.find(k => k.id === id);
+  if (!kid) return res.status(404).json({ error: 'Kid not found' });
+
+  const { avatar, passphrase } = req.body;
+  if (avatar !== undefined) kid.avatar = avatar;
+  if (passphrase !== undefined) {
+    if (!passphrase || passphrase.length < 1) {
+      return res.status(400).json({ error: 'Passphrase must be at least 1 character' });
+    }
+    kid.passphrase = passphrase;
+  }
+
+  saveData();
+  res.json({
+    success: true,
+    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color }
+  });
+});
 
 // === SHOTGUN ENDPOINTS ===
 

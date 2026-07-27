@@ -59,26 +59,7 @@ function compositeWithBackground(sdImage, bgId) {
 
     const img = new Image()
     img.onload = () => {
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = size
-      tempCanvas.height = size
-      const tempCtx = tempCanvas.getContext('2d')
-      tempCtx.drawImage(img, 0, 0, size, size)
-
-      const imgData = tempCtx.getImageData(0, 0, size, size)
-      const d = imgData.data
-      for (let i = 0; i < d.length; i += 4) {
-        const brightness = (d[i] + d[i + 1] + d[i + 2]) / 3
-        if (brightness > 220) {
-          d[i + 3] = 0
-        } else if (brightness > 180) {
-          const t = (brightness - 180) / 40
-          d[i + 3] = Math.round(255 * (1 - t))
-        }
-      }
-      tempCtx.putImageData(imgData, 0, 0)
-
-      ctx.drawImage(tempCanvas, 0, 0)
+      ctx.drawImage(img, 0, 0, size, size)
       canvas.toBlob((blob) => resolve(URL.createObjectURL(blob)), 'image/png')
     }
     img.onerror = () => resolve(null)

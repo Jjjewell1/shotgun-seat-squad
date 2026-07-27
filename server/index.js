@@ -1058,20 +1058,20 @@ app.get('/api/capabilities', async (req, res) => {
 
 // === COMFYUI CARTOON AVATAR ===
 const COMFYUI_NEGATIVE = process.env.CARTOON_NEGATIVE ||
-  'realistic, photographic, dark, scary, ugly, deformed, blurry, text, watermark, low quality, bad anatomy, nsfw, nude';
-const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'DreamShaper_8_pruned.safetensors';
-const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '25');
-const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '7');
-const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.5');
+  '(worst quality, low quality, letterboxed), realistic, photographic, dark, scary, ugly, deformed, blurry, text, watermark, bad anatomy, nsfw, nude, extra limbs';
+const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'toonyou_beta6.safetensors';
+const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '30');
+const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '8');
+const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.55');
 
 const AVATAR_STYLES = {
-  cartoon: 'flat vector cartoon avatar, bold outlines, bright saturated colors, Bitmoji style, clean digital illustration, simple flat shading, cheerful expression, centered portrait',
-  anime: 'anime manga portrait, large expressive eyes, cel shading with sharp shadows, vibrant saturated colors, detailed hair strands, clean ink lines, Japanese illustration style, dynamic pose',
-  pixar: '3D Pixar Disney render, smooth plastic skin, subsurface scattering, big friendly eyes, round soft features, cheerful smile, studio lighting, toy-like character, high detail',
-  watercolor: 'watercolor painting, visible brush strokes, soft bleeding edges, paint drips and splashes, pastel dreamy colors, artistic paper texture, loose painterly style, impressionistic portrait',
-  comic: 'Marvel DC comic book art, bold heavy black ink outlines, Ben-Day halftone dots, dynamic action pose, bright pop art primary colors, dramatic lighting, superhero style, punchy contrast',
-  pixel: '16-bit pixel art portrait, crisp square pixels, limited retro color palette, NES SNES game style, chunky pixel grid, nostalgic retro gaming aesthetic, scanlines',
-  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, baby proportions, adorable expression, Japanese kawaii mascot style'
+  cartoon: 'cartoon character, flat illustration, Bitmoji style, clean vector art, bright colors, friendly face',
+  anime: 'anime character, manga style, large expressive eyes, cel shading, vibrant colors, detailed hair',
+  pixar: '3D Pixar Disney character, smooth skin, big friendly eyes, round features, cheerful smile, studio lighting',
+  watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style',
+  comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superhero',
+  pixel: '16-bit pixel art character, crisp square pixels, retro game style, limited color palette, nostalgic',
+  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable'
 };
 
 const AVATAR_BACKGROUNDS = {
@@ -1087,7 +1087,7 @@ const AVATAR_BACKGROUNDS = {
 
 function buildCartoonWorkflow(imageName, style, background) {
   const stylePrompt = AVATAR_STYLES[style] || AVATAR_STYLES.cartoon;
-  const fullPrompt = `${stylePrompt}, isolated character on pure white background, single person portrait, centered face, high quality`;
+  const fullPrompt = `(best quality, masterpiece), ${stylePrompt}, single person portrait, centered face`;
 
   return {
     "3": {
@@ -1095,7 +1095,7 @@ function buildCartoonWorkflow(imageName, style, background) {
         "seed": Math.floor(Math.random() * 999999999),
         "steps": COMFYUI_STEPS,
         "cfg": COMFYUI_CFG,
-        "sampler_name": "dpmpp_2m",
+        "sampler_name": "dpmpp_sde",
         "scheduler": "karras",
         "denoise": COMFYUI_DENOISE,
         "model": ["4", 0],
@@ -1114,11 +1114,11 @@ function buildCartoonWorkflow(imageName, style, background) {
       "class_type": "VAEEncode"
     },
     "6": {
-      "inputs": { "text": fullPrompt, "clip": ["4", 1] },
+      "inputs": { "text": fullPrompt, "clip": ["11", 0] },
       "class_type": "CLIPTextEncode"
     },
     "7": {
-      "inputs": { "text": COMFYUI_NEGATIVE, "clip": ["4", 1] },
+      "inputs": { "text": COMFYUI_NEGATIVE, "clip": ["11", 0] },
       "class_type": "CLIPTextEncode"
     },
     "8": {
@@ -1129,8 +1129,26 @@ function buildCartoonWorkflow(imageName, style, background) {
       "inputs": { "samples": ["3", 0], "vae": ["4", 2] },
       "class_type": "VAEDecode"
     },
+    "11": {
+      "inputs": { "clip": ["4", 1], "stop_at_clip_layer": -2 },
+      "class_type": "CLIPSetLastLayer"
+    },
+    "12": {
+      "inputs": {
+        "image": ["9", 0],
+        "model": "RMBG-2.0",
+        "sensitivity": 1.0,
+        "process_res": 1024,
+        "mask_blur": 0,
+        "mask_offset": 0,
+        "invert_output": false,
+        "refine_foreground": true,
+        "background": "Alpha"
+      },
+      "class_type": "RMBG"
+    },
     "10": {
-      "inputs": { "filename_prefix": "avatar_gen", "images": ["9", 0] },
+      "inputs": { "filename_prefix": "avatar_gen", "images": ["12", 0] },
       "class_type": "SaveImage"
     }
   };

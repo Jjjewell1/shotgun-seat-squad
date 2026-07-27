@@ -370,9 +370,53 @@ app.delete('/api/kids/:id', requireAdmin, (req, res) => {
   if (data.current && data.current.kid_id === id) {
     data.current = null;
   }
+  // Clean up avatar file
+  const avatarPath = path.join(BRANDING_DIR, '..', 'avatars', `${id}.png`);
+  if (fs.existsSync(avatarPath)) fs.unlinkSync(avatarPath);
   saveData();
   res.json({ success: true });
 });
+
+// === KID AVATAR UPLOAD ===
+
+const avatarsDir = path.join(__dirname, 'avatars');
+
+app.post('/api/kids/:id/avatar', requireAdmin, upload.single('avatar'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const kid = data.kids.find(k => k.id === id);
+    if (!kid) return res.status(404).json({ error: 'Kid not found' });
+    if (!req.file) return res.status(400).json({ error: 'No image provided' });
+
+    const filepath = path.join(avatarsDir, `${id}.png`);
+    await sharp(req.file.buffer)
+      .resize(256, 256, { fit: 'cover' })
+      .png()
+      .toFile(filepath);
+
+    kid.avatar_photo = `/avatars/${id}.png?t=${Date.now()}`;
+    saveData();
+    res.json({ success: true, avatar_url: kid.avatar_photo });
+  } catch (err) {
+    console.error('Avatar upload error:', err);
+    res.status(500).json({ error: 'Failed to save avatar' });
+  }
+});
+
+app.delete('/api/kids/:id/avatar', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const kid = data.kids.find(k => k.id === id);
+  if (!kid) return res.status(404).json({ error: 'Kid not found' });
+
+  const filepath = path.join(avatarsDir, `${id}.png`);
+  if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+  kid.avatar_photo = null;
+  saveData();
+  res.json({ success: true });
+});
+
+// Serve kid avatars
+app.use('/avatars', express.static(avatarsDir));
 
 // === SHOTGUN ENDPOINTS ===
 
@@ -389,7 +433,8 @@ app.get('/api/shotgun/current', (req, res) => {
     started_at: data.current.started_at,
     name: kid.name,
     color: kid.color,
-    avatar: kid.avatar
+    avatar: kid.avatar,
+    avatar_photo: kid.avatar_photo || null
   });
 });
 
@@ -506,10 +551,12 @@ app.post('/api/shotgun/request', (req, res) => {
     requested_by: requester.id,
     requested_by_name: requester.name,
     requested_by_avatar: requester.avatar,
+    requested_by_avatar_photo: requester.avatar_photo || null,
     requested_by_color: requester.color,
     kid_id: target.id,
     kid_name: target.name,
     kid_avatar: target.avatar,
+    kid_avatar_photo: target.avatar_photo || null,
     kid_color: target.color,
     secret_token: secretToken,
     created_at: new Date().toISOString()
@@ -708,7 +755,8 @@ app.get('/api/shotgun/history', (req, res) => {
         ...entry,
         name: kid ? kid.name : 'Unknown',
         color: kid ? kid.color : '#6B7280',
-        avatar: kid ? kid.avatar : '🚗'
+        avatar: kid ? kid.avatar : '🚗',
+        avatar_photo: kid?.avatar_photo || null
       };
     });
   res.json(history);
@@ -722,6 +770,7 @@ app.get('/api/stats', (req, res) => {
       name: kid.name,
       color: kid.color,
       avatar: kid.avatar,
+      avatar_photo: kid.avatar_photo || null,
       total_rides: kidStats.total_rides,
       total_minutes: kidStats.total_minutes,
       current_streak: kidStats.current_streak,
@@ -744,6 +793,7 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
     id: k.id,
     name: k.name,
     avatar: k.avatar,
+    avatar_photo: k.avatar_photo || null,
     color: k.color,
     ...getKidStats(k.id),
     fairness_score: Math.round(getFairnessScore(k.id) * 100) / 100
@@ -753,7 +803,7 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
   const rank = allScores.findIndex(s => s.id === kid.id) + 1;
 
   res.json({
-    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, color: kid.color },
+    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color },
     stats: { ...kidStats, fairness_score: Math.round(getFairnessScore(kid.id) * 100) / 100 },
     rank,
     leaderboard: allScores,
@@ -761,7 +811,7 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
     game_highscores: kid.game_highscores || {},
     current: data.current ? (() => {
       const ck = data.kids.find(k => k.id === data.current.kid_id);
-      return ck ? { name: ck.name, avatar: ck.avatar, color: ck.color, started_at: data.current.started_at } : null;
+      return ck ? { name: ck.name, avatar: ck.avatar, avatar_photo: ck.avatar_photo || null, color: ck.color, started_at: data.current.started_at } : null;
     })() : null,
     next: data.kids.length > 0 ? (() => {
       const scored = [...allScores];
@@ -784,6 +834,24 @@ app.get('/api/branding', (req, res) => {
   res.json(data.branding || { hasLogo: false });
 });
 
+app.get('/api/branding/icons', (req, res) => {
+  if (!data.branding?.hasLogo) {
+    return res.json({
+      favicon: '/favicon.svg',
+      appleTouchIcon: '/apple-touch-icon.png',
+      icon192: '/icon-192.png',
+      icon512: '/icon-512.png'
+    });
+  }
+  const t = data.branding.uploadedAt;
+  res.json({
+    favicon: data.branding.files?.['favicon.svg'] || `/favicon.svg?t=${t}`,
+    appleTouchIcon: data.branding.files?.['apple-touch-icon.png'] || `/apple-touch-icon.png?t=${t}`,
+    icon192: data.branding.files?.['icon-192.png'] || `/icon-192.png?t=${t}`,
+    icon512: data.branding.files?.['icon-512.png'] || `/icon-512.png?t=${t}`
+  });
+});
+
 app.post('/api/branding/logo', requireAdmin, upload.single('logo'), async (req, res) => {
   try {
     if (!req.file) {
@@ -796,6 +864,7 @@ app.post('/api/branding/logo', requireAdmin, upload.single('logo'), async (req, 
     const sizes = {
       'favicon-16.png': { width: 16, height: 16 },
       'favicon-32.png': { width: 32, height: 32 },
+      'apple-touch-icon.png': { width: 180, height: 180 },
       'icon-192.png': { width: 192, height: 192 },
       'icon-512.png': { width: 512, height: 512 },
       'logo.png': { width: 400, height: 400 }
@@ -859,7 +928,7 @@ app.post('/api/branding/logo', requireAdmin, upload.single('logo'), async (req, 
 
 app.delete('/api/branding/logo', requireAdmin, (req, res) => {
   try {
-    const files = ['favicon-16.png', 'favicon-32.png', 'icon-192.png', 'icon-512.png', 'logo.png', 'favicon.svg'];
+    const files = ['favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'logo.png', 'favicon.svg'];
     files.forEach(file => {
       const filepath = path.join(BRANDING_DIR, file);
       if (fs.existsSync(filepath)) {

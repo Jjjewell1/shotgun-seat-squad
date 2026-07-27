@@ -50,7 +50,13 @@ export default function Landing({ onSelectKid, onSelectParent }) {
         {current && (
           <div className="landing-current-banner">
             <div className="landing-current-info">
-              <span className="landing-current-avatar">{current.avatar}</span>
+              <span className="landing-current-avatar">
+                {current.avatar_photo ? (
+                  <img src={current.avatar_photo} alt={current.name} className="landing-kid-avatar-img" />
+                ) : (
+                  current.avatar
+                )}
+              </span>
               <div className="landing-current-text">
                 <span className="landing-current-name" style={{ color: current.color }}>{current.name}</span>
                 <span className="landing-current-label">is riding shotgun</span>
@@ -76,7 +82,13 @@ export default function Landing({ onSelectKid, onSelectParent }) {
               style={{ '--kid-color': kid.color }}
               onClick={() => onSelectKid(kid)}
             >
-              <span className="landing-kid-avatar">{kid.avatar}</span>
+              <span className="landing-kid-avatar">
+                {kid.avatar_photo ? (
+                  <img src={kid.avatar_photo} alt={kid.name} className="landing-kid-avatar-img" />
+                ) : (
+                  kid.avatar
+                )}
+              </span>
               <span className="landing-kid-name">{kid.name}</span>
             </button>
           ))}

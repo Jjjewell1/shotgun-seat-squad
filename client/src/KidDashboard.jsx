@@ -3,6 +3,7 @@ import BadgeDisplay from './BadgeDisplay'
 import Podium from './Podium'
 import ShufflePicker from './ShufflePicker'
 import useConfetti from './useConfetti'
+import CartoonAvatar from './CartoonAvatar'
 import TicTacToe from './games/TicTacToe'
 import DragRace from './games/DragRace'
 import TrafficDodge from './games/TrafficDodge'
@@ -27,7 +28,9 @@ export default function KidDashboard({ kid, onLogout }) {
   const [activeGame, setActiveGame] = useState(null)
   const [elapsed, setElapsed] = useState('00:00:00')
   const [showPicker, setShowPicker] = useState(false)
+  const [showAvatarUpload, setShowAvatarUpload] = useState(false)
   const [fairPool, setFairPool] = useState([])
+  const [kidData, setKidData] = useState(kid)
   const fireConfetti = useConfetti()
 
   const refreshDashboard = useCallback(() => {
@@ -130,14 +133,38 @@ export default function KidDashboard({ kid, onLogout }) {
 
       <header className="kid-header">
         <div className="kid-header-info">
-          <span className="kid-header-avatar">{kid.avatar}</span>
+          <span className="kid-header-avatar" onClick={() => setShowAvatarUpload(true)} style={{ cursor: 'pointer' }} title="Tap to change photo">
+            {kidData.avatar_photo ? (
+              <img src={kidData.avatar_photo} alt={kidData.name} className="kid-header-avatar-img" />
+            ) : (
+              kidData.avatar
+            )}
+          </span>
           <div>
-            <h1 className="kid-header-name" style={{ color: kid.color }}>{kid.name}'s Dashboard</h1>
+            <h1 className="kid-header-name" style={{ color: kidData.color }}>{kidData.name}'s Dashboard</h1>
             <p className="kid-header-rank">Rank: #{dashboard.rank} of {dashboard.leaderboard.length}</p>
           </div>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={onLogout}>Log Out</button>
       </header>
+
+      {showAvatarUpload && (
+        <div className="modal-overlay" onClick={() => setShowAvatarUpload(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>📸 Your Avatar</h3>
+            <CartoonAvatar
+              kid={kidData}
+              onAvatarSaved={(url) => {
+                setKidData(prev => ({ ...prev, avatar_photo: url }))
+                setShowAvatarUpload(false)
+              }}
+            />
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-secondary" onClick={() => setShowAvatarUpload(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {dashboard.current && (
         <div className="kid-current-section">

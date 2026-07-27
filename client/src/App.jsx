@@ -9,6 +9,7 @@ import useConfetti from './useConfetti'
 import Podium from './Podium'
 import BadgeDisplay from './BadgeDisplay'
 import BrandingTab from './BrandingTab'
+import CartoonAvatar from './CartoonAvatar'
 
 const API = '/api'
 
@@ -346,7 +347,13 @@ function ParentDashboard({ onLogout, adminToken }) {
                 onClick={() => assignShotgun(kid.id)}
               >
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: kid.color }} />
-                <div className="kid-avatar-display">{kid.avatar}</div>
+                <div className="kid-avatar-display">
+                  {kid.avatar_photo ? (
+                    <img src={kid.avatar_photo} alt={kid.name} className="kid-avatar-display-img" />
+                  ) : (
+                    kid.avatar
+                  )}
+                </div>
                 <div className="kid-name" style={{ color: kid.color }}>{kid.name}</div>
                 <div className="kid-stats">
                   <span className="kid-stat-value">{kid.total_rides}</span> rides
@@ -492,7 +499,13 @@ function ParentDashboard({ onLogout, adminToken }) {
                 setEditPassphrase(kid.passphrase || '')
               }}>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: kid.color }} />
-                <div className="kid-avatar-display">{kid.avatar}</div>
+                <div className="kid-avatar-display">
+                  {kid.avatar_photo ? (
+                    <img src={kid.avatar_photo} alt={kid.name} className="kid-avatar-display-img" />
+                  ) : (
+                    kid.avatar
+                  )}
+                </div>
                 <div className="kid-name" style={{ color: kid.color }}>{kid.name}</div>
                 <div className="kid-stats">
                   <span className="kid-stat-value">{kid.total_rides}</span> rides
@@ -513,7 +526,18 @@ function ParentDashboard({ onLogout, adminToken }) {
                   <input type="text" value={editName} onChange={e => setEditName(e.target.value)} maxLength={20} />
                 </div>
                 <div className="modal-field">
-                  <label>Avatar</label>
+                  <label>Photo Avatar</label>
+                  <CartoonAvatar
+                    kid={{ ...editingKid, _adminToken: adminToken }}
+                    adminToken={adminToken}
+                    onAvatarSaved={(url) => {
+                      setEditingKid(prev => ({ ...prev, avatar_photo: url }))
+                      fetchData()
+                    }}
+                  />
+                </div>
+                <div className="modal-field">
+                  <label>Emoji Avatar</label>
                   <div className="emoji-picker-grid">
                     {emojiOptions.map(emoji => (
                       <button

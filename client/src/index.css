@@ -32,8 +32,9 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .header p { color: var(--text-secondary); font-size: 1rem; }
 
 /* === TABS === */
-.tabs { display: flex; gap: 8px; margin-bottom: 24px; background: var(--bg-card); padding: 8px; border-radius: 12px; }
-.tab { flex: 1; padding: 12px; border: none; background: transparent; color: var(--text-secondary); font-size: 0.9rem; font-weight: 600; cursor: pointer; border-radius: 8px; transition: all 0.2s ease; }
+.tabs { display: flex; gap: 6px; margin-bottom: 24px; background: var(--bg-card); padding: 8px; border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; padding: 10px 14px; border: none; background: transparent; color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 8px; transition: all 0.2s ease; white-space: nowrap; }
 .tab:hover { color: var(--text-primary); }
 .tab.active { background: var(--accent); color: #000; }
 
@@ -493,6 +494,43 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .branding-info li { padding: 6px 0; color: var(--text-secondary); font-size: 0.9rem; }
 .branding-info li::before { content: '•'; color: var(--accent); margin-right: 8px; }
 
+/* === CARTOON AVATAR === */
+.cartoon-avatar-section { margin: 16px 0; }
+.cartoon-current { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.cartoon-current-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); }
+.cartoon-upload {
+  border: 2px dashed var(--bg-card-hover);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-card);
+}
+.cartoon-upload:hover { border-color: var(--accent); }
+.cartoon-upload-prompt { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-secondary); }
+.cartoon-upload-icon { font-size: 2rem; }
+.cartoon-preview-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.cartoon-preview-card { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cartoon-preview-img { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; background: repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%) 50% / 16px 16px; }
+.cartoon-preview-arrow { font-size: 1.5rem; color: var(--text-secondary); }
+.cartoon-preview-placeholder { width: 120px; height: 120px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; background: var(--bg-dark); }
+.cartoon-preview-label { font-size: 0.8rem; color: var(--text-secondary); }
+.cartoon-actions { display: flex; gap: 12px; margin-top: 16px; }
+.cartoon-message {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-top: 12px;
+  font-size: 0.85rem;
+}
+.cartoon-message.success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+.cartoon-message.error { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+.kid-avatar-photo { border-radius: 50%; object-fit: cover; }
+.landing-kid-avatar-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.kid-header-avatar-img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+.kid-avatar-display-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+
 /* === RESPONSIVE === */
 @media (max-width: 600px) {
   .kids-grid, .kid-games-grid, .kid-stats-panel { grid-template-columns: 1fr; }
@@ -510,6 +548,6 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
   .approve-buttons { flex-direction: column; }
   .pending-request-banner { flex-direction: column; gap: 12px; text-align: center; }
   .pending-request-info { flex-direction: column; }
-  .tabs { flex-wrap: wrap; }
-  .tab { min-width: 0; font-size: 0.8rem; padding: 10px 6px; }
+  .tabs { padding: 6px; gap: 4px; }
+  .tab { padding: 8px 10px; font-size: 0.78rem; }
 }

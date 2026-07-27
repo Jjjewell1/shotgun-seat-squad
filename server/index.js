@@ -1037,6 +1037,194 @@ app.get('/api/ollama/models', requireKidOrAdmin, async (req, res) => {
   }
 })
 
+// === CAPABILITIES ===
+const COMFYUI_URL = process.env.STABLE_DIFFUSION_URL || '';
+
+app.get('/api/capabilities', async (req, res) => {
+  let comfyui = false;
+  if (COMFYUI_URL) {
+    try {
+      const r = await fetch(`${COMFYUI_URL}/system_stats`, { signal: AbortSignal.timeout(3000) });
+      comfyui = r.ok;
+    } catch (e) {}
+  }
+  let ollama = false;
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    ollama = r.ok;
+  } catch (e) {}
+  res.json({ stableDiffusion: comfyui, ollama });
+});
+
+// === COMFYUI CARTOON AVATAR ===
+const COMFYUI_PROMPT = process.env.CARTOON_PROMPT ||
+  'cartoon avatar, flat illustration, Bitmoji style, clean vector art, bright saturated colors, simple white background, cute friendly face, digital art, smooth shading';
+const COMFYUI_NEGATIVE = process.env.CARTOON_NEGATIVE ||
+  'realistic, photographic, dark, scary, ugly, deformed, blurry, text, watermark, low quality, bad anatomy';
+const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'DreamShaper_8_pruned.safetensors';
+const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '25');
+const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '7');
+const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.6');
+
+function buildCartoonWorkflow(imageName) {
+  return {
+    "3": {
+      "inputs": {
+        "seed": Math.floor(Math.random() * 999999999),
+        "steps": COMFYUI_STEPS,
+        "cfg": COMFYUI_CFG,
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
+        "denoise": COMFYUI_DENOISE,
+        "model": ["4", 0],
+        "positive": ["6", 0],
+        "negative": ["7", 0],
+        "latent_image": ["5", 0]
+      },
+      "class_type": "KSampler"
+    },
+    "4": {
+      "inputs": { "ckpt_name": COMFYUI_MODEL },
+      "class_type": "CheckpointLoaderSimple"
+    },
+    "5": {
+      "inputs": { "pixels": ["8", 0], "vae": ["4", 2] },
+      "class_type": "VAEEncode"
+    },
+    "6": {
+      "inputs": { "text": COMFYUI_PROMPT, "clip": ["4", 1] },
+      "class_type": "CLIPTextEncode"
+    },
+    "7": {
+      "inputs": { "text": COMFYUI_NEGATIVE, "clip": ["4", 1] },
+      "class_type": "CLIPTextEncode"
+    },
+    "8": {
+      "inputs": { "image": imageName },
+      "class_type": "LoadImage"
+    },
+    "9": {
+      "inputs": { "samples": ["3", 0], "vae": ["4", 2] },
+      "class_type": "VAEDecode"
+    },
+    "10": {
+      "inputs": { "filename_prefix": "avatar_gen", "images": ["9", 0] },
+      "class_type": "SaveImage"
+    }
+  };
+}
+
+app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('avatar'), async (req, res) => {
+  if (!COMFYUI_URL) {
+    return res.status(503).json({ error: 'Stable Diffusion not configured. Set STABLE_DIFFUSION_URL env var.' });
+  }
+
+  try {
+    const { id } = req.params;
+    if (req.authType === 'kid' && req.kidId !== id) {
+      return res.status(403).json({ error: 'Can only update your own avatar' });
+    }
+    const kid = data.kids.find(k => k.id === id);
+    if (!kid) return res.status(404).json({ error: 'Kid not found' });
+    if (!req.file) return res.status(400).json({ error: 'No image provided' });
+
+    // Resize to 512x512 and get raw PNG bytes
+    const resizedBuffer = await sharp(req.file.buffer)
+      .resize(512, 512, { fit: 'cover' })
+      .png()
+      .toBuffer();
+
+    // Upload to ComfyUI
+    const boundary = '----FormBoundary' + uuidv4().replace(/-/g, '');
+    const fileBase64 = resizedBuffer.toString('base64');
+    const uploadBody = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="image"; filename="input.png"',
+      'Content-Type: image/png',
+      '',
+      fileBase64,
+      `--${boundary}--`
+    ].join('\r\n');
+
+    const uploadResp = await fetch(`${COMFYUI_URL}/upload/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      body: uploadBody
+    });
+
+    if (!uploadResp.ok) {
+      const errText = await uploadResp.text();
+      console.error('ComfyUI upload failed:', errText);
+      return res.status(502).json({ error: 'Failed to upload to Stable Diffusion' });
+    }
+
+    const uploadResult = await uploadResp.json();
+    const inputImageName = uploadResult.name;
+
+    // Submit workflow
+    const workflow = buildCartoonWorkflow(inputImageName);
+    const promptResp = await fetch(`${COMFYUI_URL}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow })
+    });
+
+    if (!promptResp.ok) {
+      const errText = await promptResp.text();
+      console.error('ComfyUI prompt failed:', errText);
+      return res.status(502).json({ error: 'Failed to start image generation' });
+    }
+
+    const promptResult = await promptResp.json();
+    const promptId = promptResult.prompt_id;
+
+    // Poll for completion (max 60s)
+    let outputFilename = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const histResp = await fetch(`${COMFYUI_URL}/history/${promptId}`);
+        const history = await histResp.json();
+        const entry = history[promptId];
+        if (entry && entry.outputs && entry.outputs['10'] && entry.outputs['10'].images && entry.outputs['10'].images[0]) {
+          outputFilename = entry.outputs['10'].images[0].filename;
+          break;
+        }
+        if (entry && entry.status && entry.status.status_str === 'error') {
+          console.error('ComfyUI workflow error:', entry.status);
+          return res.status(502).json({ error: 'Image generation failed' });
+        }
+      } catch (e) {}
+    }
+
+    if (!outputFilename) {
+      return res.status(504).json({ error: 'Image generation timed out (60s)' });
+    }
+
+    // Download result
+    const imgResp = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(outputFilename)}&type=output`);
+    if (!imgResp.ok) {
+      return res.status(502).json({ error: 'Failed to download generated image' });
+    }
+    const imgArrayBuffer = await imgResp.arrayBuffer();
+    const imgBuffer = Buffer.from(imgArrayBuffer);
+
+    // Save to avatars dir, resize to 256x256
+    const filepath = path.join(AVATARS_DIR, `${id}.png`);
+    await sharp(imgBuffer)
+      .resize(256, 256, { fit: 'cover' })
+      .png()
+      .toFile(filepath);
+
+    kid.avatar_photo = `/avatars/${id}.png?t=${Date.now()}`;
+    saveData();
+    res.json({ success: true, avatar_url: kid.avatar_photo });
+  } catch (err) {
+    console.error('Cartoonize error:', err);
+    res.status(500).json({ error: 'Failed to cartoonize avatar' });
+  }
+});
+
 // Serve static client build in production
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
 if (fs.existsSync(clientBuildPath)) {

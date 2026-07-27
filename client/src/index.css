@@ -525,6 +525,25 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 }
 .cartoon-message.success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
 .cartoon-message.error { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+.cartoon-mode-badge {
+  display: inline-block; padding: 6px 14px; border-radius: 20px; font-size: 0.78rem;
+  font-weight: 600; margin-bottom: 12px; background: var(--bg-card); color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.cartoon-processing { text-align: center; padding: 16px 0; color: var(--text-secondary); }
+.cartoon-ai-progress {
+  height: 4px; background: var(--bg-card-hover); border-radius: 2px; overflow: hidden; margin-bottom: 12px;
+}
+.cartoon-ai-progress-bar {
+  height: 100%; background: linear-gradient(90deg, #8b5cf6, #a855f7, #8b5cf6);
+  border-radius: 2px; width: 40%; animation: cartoon-ai-slide 1.5s ease-in-out infinite;
+}
+@keyframes cartoon-ai-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+.cartoon-ai-spinner { animation: cartoon-ai-pulse 1s ease-in-out infinite; display: inline-block; }
+@keyframes cartoon-ai-pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
 
 .kid-avatar-photo { border-radius: 50%; object-fit: cover; }
 .landing-kid-avatar-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }

@@ -921,8 +921,8 @@ app.post('/api/branding/logo', requireAdmin, upload.single('logo'), async (req, 
       branding: data.branding
     });
   } catch (err) {
-    console.error('Branding upload error:', err);
-    res.status(500).json({ error: 'Failed to process image' });
+    console.error('Branding upload error:', err.message, err.stack);
+    res.status(500).json({ error: 'Failed to process image: ' + err.message });
   }
 });
 

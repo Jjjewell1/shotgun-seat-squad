@@ -4,8 +4,10 @@ import { removeBackground } from '@imgly/background-removal'
 const API = '/api'
 
 export default function BrandingTab({ adminToken }) {
-  const [original, setOriginal] = useState(null)
-  const [processed, setProcessed] = useState(null)
+  const [originalFile, setOriginalFile] = useState(null)
+  const [originalUrl, setOriginalUrl] = useState(null)
+  const [processedBlob, setProcessedBlob] = useState(null)
+  const [processedUrl, setProcessedUrl] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState('')
   const [branding, setBranding] = useState(null)
@@ -27,7 +29,14 @@ export default function BrandingTab({ adminToken }) {
 
   useEffect(() => { loadBranding() }, [loadBranding])
 
-  const handleFileSelect = async (e) => {
+  useEffect(() => {
+    return () => {
+      if (originalUrl) URL.revokeObjectURL(originalUrl)
+      if (processedUrl) URL.revokeObjectURL(processedUrl)
+    }
+  }, [originalUrl, processedUrl])
+
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -36,29 +45,28 @@ export default function BrandingTab({ adminToken }) {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setOriginal(ev.target.result)
-      setProcessed(null)
-      setMessage('')
-    }
-    reader.readAsDataURL(file)
+    if (originalUrl) URL.revokeObjectURL(originalUrl)
+    if (processedUrl) URL.revokeObjectURL(processedUrl)
+
+    const url = URL.createObjectURL(file)
+    setOriginalFile(file)
+    setOriginalUrl(url)
+    setProcessedBlob(null)
+    setProcessedUrl(null)
+    setMessage('')
   }
 
   const handleRemoveBackground = async () => {
-    if (!original) return
+    if (!originalFile) return
 
     setProcessing(true)
     setProgress('Loading AI model...')
     setMessage('')
 
     try {
-      const response = await fetch(original)
-      const blob = await response.blob()
-
       setProgress('Removing background...')
 
-      const result = await removeBackground(blob, {
+      const result = await removeBackground(originalFile, {
         progress: (key, current, total) => {
           if (key === 'compute:inference') {
             const pct = Math.round((current / total) * 100)
@@ -67,8 +75,10 @@ export default function BrandingTab({ adminToken }) {
         }
       })
 
+      if (processedUrl) URL.revokeObjectURL(processedUrl)
       const url = URL.createObjectURL(result)
-      setProcessed(url)
+      setProcessedBlob(result)
+      setProcessedUrl(url)
       setProgress('')
       setMessage('Background removed! Click "Save Logo" to apply.')
     } catch (err) {
@@ -81,16 +91,14 @@ export default function BrandingTab({ adminToken }) {
   }
 
   const handleSave = async () => {
-    const imageToSave = processed || original
-    if (!imageToSave) return
+    if (!originalFile && !processedBlob) return
 
     setSaving(true)
     setMessage('')
 
     try {
-      const response = await fetch(imageToSave)
-      const blob = await response.blob()
-      const file = new File([blob], 'logo.png', { type: 'image/png' })
+      const blobToUpload = processedBlob || originalFile
+      const file = new File([blobToUpload], 'logo.png', { type: 'image/png' })
 
       const formData = new FormData()
       formData.append('logo', file)
@@ -106,8 +114,10 @@ export default function BrandingTab({ adminToken }) {
       if (data.success) {
         setBranding(data.branding)
         setMessage('Logo saved! Refresh the page to see changes.')
-        setOriginal(null)
-        setProcessed(null)
+        setOriginalFile(null)
+        setOriginalUrl(null)
+        setProcessedBlob(null)
+        setProcessedUrl(null)
       } else {
         setMessage(data.error || 'Failed to save logo')
       }
@@ -141,13 +151,15 @@ export default function BrandingTab({ adminToken }) {
     e.preventDefault()
     const file = e.dataTransfer.files?.[0]
     if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        setOriginal(ev.target.result)
-        setProcessed(null)
-        setMessage('')
-      }
-      reader.readAsDataURL(file)
+      if (originalUrl) URL.revokeObjectURL(originalUrl)
+      if (processedUrl) URL.revokeObjectURL(processedUrl)
+
+      const url = URL.createObjectURL(file)
+      setOriginalFile(file)
+      setOriginalUrl(url)
+      setProcessedBlob(null)
+      setProcessedUrl(null)
+      setMessage('')
     }
   }
 
@@ -155,7 +167,7 @@ export default function BrandingTab({ adminToken }) {
     <div className="branding-section">
       <div className="section-title">App Branding</div>
       <p className="branding-description">
-        Upload a logo to customize the app icon, favicon, and branding. 
+        Upload a logo to customize the app icon, favicon, and branding.
         Background removal happens in your browser — nothing is sent to external servers.
       </p>
 
@@ -182,8 +194,8 @@ export default function BrandingTab({ adminToken }) {
           onChange={handleFileSelect}
           style={{ display: 'none' }}
         />
-        {original ? (
-          <img src={original} alt="Original" className="branding-dropzone-img" />
+        {originalUrl ? (
+          <img src={originalUrl} alt="Original" className="branding-dropzone-img" />
         ) : (
           <>
             <div className="branding-dropzone-icon">📁</div>
@@ -193,7 +205,7 @@ export default function BrandingTab({ adminToken }) {
         )}
       </div>
 
-      {original && (
+      {originalUrl && (
         <div className="branding-actions">
           <button
             className="btn btn-secondary"
@@ -205,29 +217,35 @@ export default function BrandingTab({ adminToken }) {
           <button
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={saving || (!original && !processed)}
+            disabled={saving}
           >
             {saving ? 'Saving...' : '💾 Save Logo'}
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => { setOriginal(null); setProcessed(null); setMessage('') }}
+            onClick={() => {
+              setOriginalFile(null)
+              setOriginalUrl(null)
+              setProcessedBlob(null)
+              setProcessedUrl(null)
+              setMessage('')
+            }}
           >
             Cancel
           </button>
         </div>
       )}
 
-      {processed && (
+      {processedUrl && (
         <div className="branding-result">
           <div className="branding-result-label">Processed Preview</div>
           <div className="branding-preview-grid">
             <div className="branding-preview-card">
-              <img src={original} alt="Original" className="branding-preview-img" />
+              <img src={originalUrl} alt="Original" className="branding-preview-img" />
               <div className="branding-preview-label">Original</div>
             </div>
             <div className="branding-preview-card">
-              <img src={processed} alt="Processed" className="branding-preview-img" />
+              <img src={processedUrl} alt="Processed" className="branding-preview-img" />
               <div className="branding-preview-label">Background Removed</div>
             </div>
           </div>

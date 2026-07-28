@@ -297,7 +297,7 @@ app.post('/api/auth/kid', (req, res) => {
     if (!kid.avatar) kid.avatar = '🚗';
     const token = uuidv4();
     kidSessions.set(token, kid.id);
-    res.json({ success: true, token, kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color } });
+    res.json({ success: true, token, kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color, gender: kid.gender || '' } });
   } else {
     res.status(401).json({ success: false, error: 'Wrong passphrase' });
   }
@@ -318,7 +318,7 @@ app.get('/api/kids', (req, res) => {
 });
 
 app.post('/api/kids', requireAdmin, (req, res) => {
-  const { name, color, avatar, passphrase } = req.body;
+  const { name, color, avatar, passphrase, gender } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   if (name.length > 20) return res.status(400).json({ error: 'Name must be 20 characters or less' });
   const kid = {
@@ -327,6 +327,7 @@ app.post('/api/kids', requireAdmin, (req, res) => {
     color: color || '#6B7280',
     avatar: avatar || '🚗',
     passphrase: passphrase || 'vroom',
+    gender: gender || '',
     game_highscores: {
       tictactoe: 0,
       dragrace_wins: 0,
@@ -346,7 +347,7 @@ app.patch('/api/kids/:id', requireAdmin, (req, res) => {
   const kid = data.kids.find(k => k.id === id);
   if (!kid) return res.status(404).json({ error: 'Kid not found' });
 
-  const { name, color, avatar, passphrase } = req.body;
+  const { name, color, avatar, passphrase, gender } = req.body;
   if (name !== undefined) {
     if (name.length > 20) return res.status(400).json({ error: 'Name must be 20 characters or less' });
     kid.name = name;
@@ -354,6 +355,7 @@ app.patch('/api/kids/:id', requireAdmin, (req, res) => {
   if (color !== undefined) kid.color = color;
   if (avatar !== undefined) kid.avatar = avatar;
   if (passphrase !== undefined) kid.passphrase = passphrase;
+  if (gender !== undefined) kid.gender = gender;
   saveData();
   res.json(kid);
 });
@@ -457,8 +459,9 @@ app.patch('/api/kids/:id/profile', requireKidOrAdmin, (req, res) => {
   const kid = data.kids.find(k => k.id === id);
   if (!kid) return res.status(404).json({ error: 'Kid not found' });
 
-  const { avatar, passphrase } = req.body;
+  const { avatar, passphrase, gender } = req.body;
   if (avatar !== undefined) kid.avatar = avatar;
+  if (gender !== undefined) kid.gender = gender;
   if (passphrase !== undefined) {
     if (!passphrase || passphrase.length < 1) {
       return res.status(400).json({ error: 'Passphrase must be at least 1 character' });
@@ -469,7 +472,7 @@ app.patch('/api/kids/:id/profile', requireKidOrAdmin, (req, res) => {
   saveData();
   res.json({
     success: true,
-    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color }
+    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color, gender: kid.gender || '' }
   });
 });
 
@@ -858,7 +861,7 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
   const rank = allScores.findIndex(s => s.id === kid.id) + 1;
 
   res.json({
-    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color },
+    kid: { id: kid.id, name: kid.name, avatar: kid.avatar, avatar_photo: kid.avatar_photo || null, color: kid.color, gender: kid.gender || '' },
     stats: { ...kidStats, fairness_score: Math.round(getFairnessScore(kid.id) * 100) / 100 },
     rank,
     leaderboard: allScores,
@@ -866,7 +869,7 @@ app.get('/api/kid/:id/dashboard', (req, res) => {
     game_highscores: kid.game_highscores || {},
     current: data.current ? (() => {
       const ck = data.kids.find(k => k.id === data.current.kid_id);
-      return ck ? { name: ck.name, avatar: ck.avatar, avatar_photo: ck.avatar_photo || null, color: ck.color, started_at: data.current.started_at } : null;
+      return ck ? { name: ck.name, avatar: ck.avatar, avatar_photo: ck.avatar_photo || null, color: ck.color, gender: ck.gender || '', started_at: data.current.started_at } : null;
     })() : null,
     next: data.kids.length > 0 ? (() => {
       const scored = [...allScores];
@@ -1066,7 +1069,7 @@ const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.55');
 
 const AVATAR_STYLES = {
   cartoon: 'cartoon character, flat illustration, Bitmoji style, clean vector art, bright colors, friendly face',
-  anime: 'anime character, manga style, large expressive eyes, cel shading, vibrant colors, detailed hair',
+  anime: 'anime character, manga style, large expressive eyes, cel shading, vibrant colors, detailed hair, gender neutral',
   pixar: '3D Pixar Disney character, smooth skin, big friendly eyes, round features, cheerful smile, studio lighting',
   watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style',
   comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superhero',
@@ -1085,9 +1088,10 @@ const AVATAR_BACKGROUNDS = {
   gaming: 'neon glow gaming setup, digital grid, cyberpunk, futuristic'
 };
 
-function buildCartoonWorkflow(imageName, style, background) {
+function buildCartoonWorkflow(imageName, style, background, gender) {
   const stylePrompt = AVATAR_STYLES[style] || AVATAR_STYLES.cartoon;
-  const fullPrompt = `(best quality, masterpiece), ${stylePrompt}, single person portrait, centered face`;
+  const genderHint = gender === 'boy' ? ', young male' : gender === 'girl' ? ', young female' : '';
+  const fullPrompt = `(best quality, masterpiece), ${stylePrompt}, single person portrait, centered face${genderHint}`;
 
   return {
     "3": {
@@ -1204,7 +1208,7 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     const inputImageName = uploadResult.name;
 
     const { style } = req.body || {};
-    const workflow = buildCartoonWorkflow(inputImageName, style, 'white');
+    const workflow = buildCartoonWorkflow(inputImageName, style, 'white', kid.gender);
     const promptResp = await fetch(`${COMFYUI_URL}/prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1312,7 +1316,7 @@ app.post('/api/kids/:id/avatar/regenerate', requireKidOrAdmin, async (req, res) 
     const inputImageName = uploadResult.name;
 
     const { style } = req.body || {};
-    const workflow = buildCartoonWorkflow(inputImageName, style, 'white');
+    const workflow = buildCartoonWorkflow(inputImageName, style, 'white', kid.gender);
     const promptResp = await fetch(`${COMFYUI_URL}/prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

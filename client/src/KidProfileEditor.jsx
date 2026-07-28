@@ -18,6 +18,7 @@ export default function KidProfileEditor({ kid, onSaved, onBack }) {
   const [saving, setSaving] = useState(false)
   const [activeSection, setActiveSection] = useState('photo')
   const [emojiOptions, setEmojiOptions] = useState(EMOJI_OPTIONS)
+  const [gender, setGender] = useState(kid.gender || '')
 
   useEffect(() => {
     fetch(`${API}/emoji-options`).then(r => r.json()).then(setEmojiOptions).catch(() => {})
@@ -82,6 +83,32 @@ export default function KidProfileEditor({ kid, onSaved, onBack }) {
     setSaving(false)
   }
 
+  const handleGenderSave = async (val) => {
+    setGender(val)
+    setSaving(true)
+    setMessage('')
+    try {
+      const res = await fetch(`${API}/kids/${kid.id}/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${kid._token}`
+        },
+        body: JSON.stringify({ gender: val })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage('Gender updated!')
+        if (onSaved) onSaved(data.kid)
+      } else {
+        setMessage(data.error || 'Failed to save')
+      }
+    } catch {
+      setMessage('Failed to save')
+    }
+    setSaving(false)
+  }
+
   return (
     <div className="kid-profile-editor">
       <header className="kid-header">
@@ -111,6 +138,25 @@ export default function KidProfileEditor({ kid, onSaved, onBack }) {
           <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
             Take a photo and turn it into a cartoon avatar!
           </p>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ color: 'var(--text-secondary)', fontSize: 14, display: 'block', marginBottom: 8 }}>I am a...</label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[
+                { val: 'boy', label: '👦 Boy', icon: '👦' },
+                { val: 'girl', label: '👧 Girl', icon: '👧' }
+              ].map(({ val, label }) => (
+                <button
+                  key={val}
+                  className={`btn ${gender === val ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => handleGenderSave(val)}
+                  disabled={saving}
+                  style={{ flex: 1, fontSize: 16, padding: '10px 0' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <CartoonAvatar
             kid={kid}
             onAvatarSaved={(url) => {

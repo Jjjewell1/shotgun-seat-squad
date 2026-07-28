@@ -1076,7 +1076,7 @@ const AVATAR_STYLES = {
   watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style, boy',
   comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superhero, boy',
   pixel: '16-bit pixel art character, crisp square pixels, retro game style, limited color palette, nostalgic, boy character',
-  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable, boy character'
+  chibi: 'chibi super deformed, huge head tiny body, big expressive eyes, playful, pastel colors, cute boy character, short hair'
 };
 
 const GIRL_STYLES = {
@@ -1086,7 +1086,7 @@ const GIRL_STYLES = {
   watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style, girl',
   comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superheroine, girl',
   pixel: '16-bit pixel art character, crisp square pixels, retro game style, limited color palette, nostalgic, girl character',
-  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable, girl character'
+  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable, cute girl character, long hair'
 };
 
 const AVATAR_BACKGROUNDS = {

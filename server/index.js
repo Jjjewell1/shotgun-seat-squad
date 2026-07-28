@@ -1221,7 +1221,7 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     const promptId = promptResult.prompt_id;
 
     let outputFilename = null;
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 90; i++) {
       await new Promise(r => setTimeout(r, 2000));
       try {
         const histResp = await fetch(`${COMFYUI_URL}/history/${promptId}`);
@@ -1239,7 +1239,7 @@ app.post('/api/kids/:id/avatar/cartoonize', requireKidOrAdmin, upload.single('av
     }
 
     if (!outputFilename) {
-      return res.status(504).json({ error: 'Image generation timed out (60s)' });
+      return res.status(504).json({ error: 'Image generation timed out (180s)' });
     }
 
     const imgResp = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(outputFilename)}&type=output`);
@@ -1327,7 +1327,7 @@ app.post('/api/kids/:id/avatar/regenerate', requireKidOrAdmin, async (req, res) 
     const promptId = promptResult.prompt_id;
 
     let outputFilename = null;
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 90; i++) {
       await new Promise(r => setTimeout(r, 2000));
       try {
         const histResp = await fetch(`${COMFYUI_URL}/history/${promptId}`);
@@ -1344,7 +1344,7 @@ app.post('/api/kids/:id/avatar/regenerate', requireKidOrAdmin, async (req, res) 
     }
 
     if (!outputFilename) {
-      return res.status(504).json({ error: 'Image generation timed out (60s)' });
+      return res.status(504).json({ error: 'Image generation timed out (180s)' });
     }
 
     const imgResp = await fetch(`${COMFYUI_URL}/view?filename=${encodeURIComponent(outputFilename)}&type=output`);

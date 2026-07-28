@@ -1060,21 +1060,33 @@ app.get('/api/capabilities', async (req, res) => {
 });
 
 // === COMFYUI CARTOON AVATAR ===
-const COMFYUI_NEGATIVE = process.env.CARTOON_NEGATIVE ||
+const COMFYUI_NEGATIVE_BASE = process.env.CARTOON_NEGATIVE ||
   '(worst quality, low quality, letterboxed), realistic, photographic, dark, scary, ugly, deformed, blurry, text, watermark, bad anatomy, nsfw, nude, extra limbs';
+const COMFYUI_NEGATIVE_MALE = ', feminine, girl, woman, long hair, lipstick, makeup, breasts, skirt, dress';
+const COMFYUI_NEGATIVE_FEMALE = ', masculine, boy, man, beard, mustache';
 const COMFYUI_MODEL = process.env.CARTOON_MODEL || 'toonyou_beta6.safetensors';
 const COMFYUI_STEPS = parseInt(process.env.CARTOON_STEPS || '30');
-const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '8');
-const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.55');
+const COMFYUI_CFG = parseInt(process.env.CARTOON_CFG || '9');
+const COMFYUI_DENOISE = parseFloat(process.env.CARTOON_DENOISE || '0.6');
 
 const AVATAR_STYLES = {
-  cartoon: 'cartoon character, flat illustration, Bitmoji style, clean vector art, bright colors, friendly face',
-  anime: 'anime character, manga style, large expressive eyes, cel shading, vibrant colors, detailed hair, gender neutral',
-  pixar: '3D Pixar Disney character, smooth skin, big friendly eyes, round features, cheerful smile, studio lighting',
-  watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style',
-  comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superhero',
-  pixel: '16-bit pixel art character, crisp square pixels, retro game style, limited color palette, nostalgic',
-  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable'
+  cartoon: 'cartoon character, flat illustration, Bitmoji style, clean vector art, bright colors, friendly face, masculine features, short hair, boy',
+  anime: 'anime character, manga style, large expressive eyes, cel shading, vibrant colors, detailed hair, masculine features, short spiky hair, boy',
+  pixar: '3D Pixar Disney character, smooth skin, big friendly eyes, round features, cheerful smile, studio lighting, masculine features, boy',
+  watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style, masculine features, boy',
+  comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superhero, masculine features, strong jawline, boy',
+  pixel: '16-bit pixel art character, crisp square pixels, retro game style, limited color palette, nostalgic, boy character',
+  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable, boy character'
+};
+
+const GIRL_STYLES = {
+  cartoon: 'cartoon character, flat illustration, Bitmoji style, clean vector art, bright colors, friendly face, feminine features, girl',
+  anime: 'anime character, manga style, large expressive eyes, cel shading, vibrant colors, detailed hair, feminine features, long flowing hair, girl',
+  pixar: '3D Pixar Disney character, smooth skin, big friendly eyes, round features, cheerful smile, studio lighting, feminine features, girl',
+  watercolor: 'watercolor painting, soft edges, paint drips, pastel dreamy colors, artistic brush strokes, loose style, feminine features, girl',
+  comic: 'comic book character, bold black outlines, halftone dots, bright pop art colors, dynamic shading, superheroine, feminine features, girl',
+  pixel: '16-bit pixel art character, crisp square pixels, retro game style, limited color palette, nostalgic, girl character',
+  chibi: 'chibi super deformed, huge head tiny body, enormous sparkly eyes, kawaii cute, pastel colors, adorable, girl character'
 };
 
 const AVATAR_BACKGROUNDS = {
@@ -1089,9 +1101,10 @@ const AVATAR_BACKGROUNDS = {
 };
 
 function buildCartoonWorkflow(imageName, style, background, gender) {
-  const stylePrompt = AVATAR_STYLES[style] || AVATAR_STYLES.cartoon;
-  const genderHint = gender === 'boy' ? ', young male' : gender === 'girl' ? ', young female' : '';
-  const fullPrompt = `(best quality, masterpiece), ${stylePrompt}, single person portrait, centered face${genderHint}`;
+  const styles = gender === 'girl' ? GIRL_STYLES : AVATAR_STYLES;
+  const stylePrompt = styles[style] || styles.cartoon;
+  const fullPrompt = `(best quality, masterpiece), ${stylePrompt}, single person portrait, centered face`;
+  const negativePrompt = COMFYUI_NEGATIVE_BASE + (gender === 'boy' ? COMFYUI_NEGATIVE_MALE : gender === 'girl' ? COMFYUI_NEGATIVE_FEMALE : '');
 
   return {
     "3": {
@@ -1122,7 +1135,7 @@ function buildCartoonWorkflow(imageName, style, background, gender) {
       "class_type": "CLIPTextEncode"
     },
     "7": {
-      "inputs": { "text": COMFYUI_NEGATIVE, "clip": ["11", 0] },
+      "inputs": { "text": negativePrompt, "clip": ["11", 0] },
       "class_type": "CLIPTextEncode"
     },
     "8": {

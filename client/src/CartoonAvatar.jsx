@@ -399,7 +399,7 @@ export default function CartoonAvatar({ kid, adminToken, onAvatarSaved }) {
       )}
 
       <div className="cartoon-upload" onClick={() => !processing && !original && fileInputRef.current?.click()}>
-        <input ref={fileInputRef} type="file" accept="image/*" capture="user" onChange={handleFileSelect} style={{ display: 'none' }} />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
         {original ? (
           <div className="cartoon-preview-row">
             <div className="cartoon-preview-card">

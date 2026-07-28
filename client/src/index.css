@@ -589,6 +589,9 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
   .pending-request-info { flex-direction: column; }
   .tabs { padding: 6px; gap: 4px; }
   .tab { padding: 8px 10px; font-size: 0.78rem; }
+  .cartoon-preview-row { gap: 8px; }
+  .cartoon-preview-img, .cartoon-preview-placeholder { width: 90px; height: 90px; }
+  .cartoon-preview-arrow { font-size: 1.2rem; }
 }
 
 /* === AI GAME BADGE === */
